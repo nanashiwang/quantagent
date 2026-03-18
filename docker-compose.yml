@@ -1,0 +1,33 @@
+services:
+  app:
+    build:
+      context: .
+    image: quant-trading:local
+    container_name: quant-trading-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-quant_trading}
+      SQLITE_PATH: ${SQLITE_PATH:-data/sqlite/trading.db}
+      LOG_FILE: ${LOG_FILE:-logs/app.log}
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    container_name: quant-trading-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+
+volumes:
+  mongo_data:

@@ -1,0 +1,103 @@
+import os
+import sys
+import tempfile
+import textwrap
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.utils.config import Config
+
+
+class TestConfig(unittest.TestCase):
+    """测试配置加载"""
+
+    def test_load_supports_env_placeholders_and_defaults(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            config_dir = temp_path / "config"
+            config_dir.mkdir()
+
+            config_file = config_dir / "config.yaml"
+            config_file.write_text(
+                textwrap.dedent(
+                    """
+                    llm:
+                      provider: "openai"
+                      api_base: "https://api.openai.com/v1"
+                      api_key: "${TEST_LLM_API_KEY}"
+                      model: "gpt-4"
+                      temperature: 0.7
+                      max_tokens: 2000
+
+                    tushare:
+                      token: "${TEST_TUSHARE_TOKEN}"
+
+                    database:
+                      mongodb:
+                        uri: "${TEST_MONGODB_URI:-mongodb://mongo:27017}"
+                        db_name: "${TEST_MONGODB_DB_NAME:-quant_trading}"
+                      sqlite:
+                        path: "${TEST_SQLITE_PATH:-data/sqlite/trading.db}"
+
+                    logging:
+                      level: "${TEST_LOG_LEVEL:-INFO}"
+                      file: "${TEST_LOG_FILE:-logs/app.log}"
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+
+            os.environ["TEST_LLM_API_KEY"] = "llm-key"
+            os.environ["TEST_TUSHARE_TOKEN"] = "ts-token"
+            try:
+                config = Config.load(str(config_file))
+            finally:
+                os.environ.pop("TEST_LLM_API_KEY", None)
+                os.environ.pop("TEST_TUSHARE_TOKEN", None)
+
+            self.assertEqual(config.llm.api_key, "llm-key")
+            self.assertEqual(config.tushare.token, "ts-token")
+            self.assertEqual(config.database.mongodb.uri, "mongodb://mongo:27017")
+            self.assertEqual(config.database.sqlite.path, "data/sqlite/trading.db")
+            self.assertEqual(config.logging.file, "logs/app.log")
+
+    def test_load_raises_for_missing_required_env(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            config_dir = temp_path / "config"
+            config_dir.mkdir()
+
+            config_file = config_dir / "config.yaml"
+            config_file.write_text(
+                textwrap.dedent(
+                    """
+                    llm:
+                      provider: "openai"
+                      api_base: "https://api.openai.com/v1"
+                      api_key: "${MISSING_LLM_API_KEY}"
+                      model: "gpt-4"
+                      temperature: 0.7
+                      max_tokens: 2000
+
+                    tushare:
+                      token: "token"
+
+                    database:
+                      mongodb:
+                        uri: "mongodb://localhost:27017"
+                        db_name: "quant_trading"
+                      sqlite:
+                        path: "data/sqlite/trading.db"
+
+                    logging:
+                      level: "INFO"
+                      file: "logs/app.log"
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "缺少必需的环境变量"):
+                Config.load(str(config_file))

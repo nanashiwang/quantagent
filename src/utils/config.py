@@ -1,8 +1,11 @@
+import os
+import re
 from pathlib import Path
-from typing import Optional
-from pydantic import Field
-from pydantic_settings import BaseSettings
+from typing import Any, Optional
+
 import yaml
+from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 
 class LLMConfig(BaseSettings):
@@ -48,10 +51,15 @@ class Config(BaseSettings):
         if config_path is None:
             config_path = Path(__file__).parent.parent.parent / "config" / "config.yaml"
 
+        config_path = Path(config_path).resolve()
+        env_path = config_path.parent.parent / ".env"
+        load_dotenv(env_path, override=False)
+
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
-        return cls(**data)
+        resolved_data = _expand_env_placeholders(data)
+        return cls(**resolved_data)
 
 
 _config: Optional[Config] = None
@@ -62,3 +70,33 @@ def get_config() -> Config:
     if _config is None:
         _config = Config.load()
     return _config
+
+
+_ENV_PATTERN = re.compile(r"\$\{([^}:]+)(?::-(.*?))?\}")
+
+
+def _expand_env_placeholders(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _expand_env_placeholders(item) for key, item in value.items()}
+
+    if isinstance(value, list):
+        return [_expand_env_placeholders(item) for item in value]
+
+    if isinstance(value, str):
+        return _ENV_PATTERN.sub(_resolve_env_placeholder, value)
+
+    return value
+
+
+def _resolve_env_placeholder(match: re.Match[str]) -> str:
+    env_name = match.group(1)
+    default_value = match.group(2)
+    env_value = os.getenv(env_name)
+
+    if env_value is not None:
+        return env_value
+
+    if default_value is not None:
+        return default_value
+
+    raise ValueError(f"缺少必需的环境变量: {env_name}")
