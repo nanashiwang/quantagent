@@ -51,13 +51,13 @@ docker compose down -v
 当仓库推送到默认分支或打 `v*` 标签后，GitHub Actions 会自动发布镜像到：
 
 ```text
-ghcr.io/<你的 GitHub 用户名>/<你的仓库名>:latest
+ghcr.io/<你的 GitHub 用户名>/quant-trading:latest
 ```
 
 拉取命令：
 
 ```bash
-docker pull ghcr.io/<你的 GitHub 用户名>/<你的仓库名>:latest
+docker pull ghcr.io/<你的 GitHub 用户名>/quant-trading:latest
 ```
 
 ## 4. 运行已发布镜像
@@ -72,7 +72,7 @@ docker run -d `
   -e "MONGODB_URI=mongodb://host.docker.internal:27017" `
   -v "${PWD}/data:/app/data" `
   -v "${PWD}/logs:/app/logs" `
-  "ghcr.io/<你的 GitHub 用户名>/<你的仓库名>:latest"
+  "ghcr.io/<你的 GitHub 用户名>/quant-trading:latest"
 ```
 
 如果希望继续用 Compose，也可以把 `docker-compose.yml` 中的 `app.build` 删除，改成仅保留 `image`。
@@ -96,5 +96,6 @@ docker run -d `
 ## 6. 发布注意事项
 
 - GHCR 默认镜像地址为 `ghcr.io/<owner>/<repo>`
+- 当前工作流显式使用镜像名 `quant-trading`，避免仓库名不满足容器镜像命名规则时发布失败
 - 如果希望任何人都能直接 `docker pull`，需要把 GitHub Packages 中对应镜像设为公开
 - 当前工作流默认发布 `linux/amd64`，这是为了降低三方量化依赖的跨架构构建风险
