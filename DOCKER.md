@@ -60,7 +60,34 @@ ghcr.io/<你的 GitHub 用户名>/quant-trading:latest
 docker pull ghcr.io/<你的 GitHub 用户名>/quant-trading:latest
 ```
 
-## 4. 运行已发布镜像
+## 4. 使用 Compose 直接拉取并运行
+
+项目已提供 `docker-compose.pull.yml`，默认直接拉取 GHCR 镜像，不走本地构建：
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.pull.yml up -d
+```
+
+查看日志：
+
+```bash
+docker compose -f docker-compose.pull.yml logs -f
+```
+
+停止服务：
+
+```bash
+docker compose -f docker-compose.pull.yml down
+```
+
+如果还要删除 MongoDB 数据卷：
+
+```bash
+docker compose -f docker-compose.pull.yml down -v
+```
+
+## 5. 运行已发布镜像
 
 如果你已经有可用的 MongoDB，可以直接运行：
 
@@ -77,7 +104,7 @@ docker run -d `
 
 如果希望继续用 Compose，也可以把 `docker-compose.yml` 中的 `app.build` 删除，改成仅保留 `image`。
 
-## 5. 配置说明
+## 6. 配置说明
 
 容器内支持以下环境变量：
 
@@ -93,7 +120,7 @@ docker run -d `
 
 `config/config.yaml` 现在支持 `${VAR}` 和 `${VAR:-default}` 格式，占位符会在启动时自动展开。
 
-## 6. 发布注意事项
+## 7. 发布注意事项
 
 - GHCR 默认镜像地址为 `ghcr.io/<owner>/<repo>`
 - 当前工作流显式使用镜像名 `quant-trading`，避免仓库名不满足容器镜像命名规则时发布失败
