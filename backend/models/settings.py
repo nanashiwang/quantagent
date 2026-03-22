@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 
 
@@ -52,16 +52,28 @@ class AgentConfigUpdate(BaseModel):
 class NewsSourceCreate(BaseModel):
     name: str
     type: str
-    config: str
+    config: Dict[str, Any] = Field(default_factory=dict)
     is_enabled: bool = True
     fetch_interval: int = 3600
+    category: str = ""
+    market: str = ""
+    dedup_strategy: str = "content_hash"
+    parser: str = ""
+    priority: float = 0.5
+    credibility: float = 0.5
 
 
 class NewsSourceOut(BaseModel):
     id: int
     name: str
     type: str
-    config: str
+    config: Dict[str, Any]
     is_enabled: bool
     fetch_interval: int
+    category: str = ""
+    market: str = ""
+    dedup_strategy: str = "content_hash"
+    parser: str = ""
+    priority: float = 0.5
+    credibility: float = 0.5
     last_fetched: Optional[str] = None

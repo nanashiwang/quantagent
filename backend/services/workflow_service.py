@@ -96,7 +96,25 @@ class WorkflowRunner:
                 ts_api = TushareAPI(token)
 
                 with db.get_connection() as conn:
-                    row = conn.execute("SELECT content FROM event_briefs WHERE date = ?", (date,)).fetchone()
+                    row = conn.execute(
+                        """
+                        SELECT content FROM event_briefs
+                        WHERE date = ? AND COALESCE(source, '') != 'news_digest'
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        (date,),
+                    ).fetchone()
+                    if not row:
+                        row = conn.execute(
+                            """
+                            SELECT content FROM event_briefs
+                            WHERE date = ? AND source = 'news_digest'
+                            ORDER BY created_at DESC
+                            LIMIT 1
+                            """,
+                            (date,),
+                        ).fetchone()
                     event_brief = row["content"] if row else "无简报"
 
                 stock_pool = ts_api.get_stock_basic()["ts_code"].tolist()[:100]

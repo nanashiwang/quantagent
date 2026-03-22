@@ -31,6 +31,15 @@ class TestSQLiteClient(unittest.TestCase):
             self.assertIn('recommendations', tables)
             self.assertIn('trades', tables)
             self.assertIn('reviews', tables)
+            self.assertIn('news_sources', tables)
+            self.assertIn('news_articles', tables)
+
+            source_columns = {
+                row['name']
+                for row in conn.execute("PRAGMA table_info(news_sources)").fetchall()
+            }
+            self.assertIn('priority', source_columns)
+            self.assertIn('credibility', source_columns)
 
     def test_insert_recommendation(self):
         """测试插入推荐"""

@@ -1,26 +1,35 @@
 import sys
 from pathlib import Path
 
-# 确保项目根目录在路径中
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.auth.jwt_handler import validate_jwt_config
-from src.utils.config import get_config
-from src.data.db.sqlite_client import SQLiteClient
+from backend.routers import (
+    agents,
+    auth,
+    backtest,
+    knowledge,
+    news,
+    recommend,
+    review,
+    settings,
+    sources,
+    trades,
+    users,
+    workflow,
+)
 from src.data.db.mongo_client import MongoDBClient
-from src.data.sources.tushare_api import TushareAPI
-from src.llm.factory import LLMFactory
+from src.data.db.sqlite_client import SQLiteClient
+from src.utils.config import get_config
 
-from backend.routers import auth, users, settings, agents, sources, recommend, review, knowledge, backtest, trades, workflow
-
-# 全局实例
 _sqlite_client = None
 _mongo_client = None
+_news_scheduler = None
 
 
 def get_sqlite_client() -> SQLiteClient:
@@ -39,7 +48,7 @@ def get_mongo_client() -> MongoDBClient:
     return _mongo_client
 
 
-app = FastAPI(title="多Agent量化交易系统", version="2.0.0")
+app = FastAPI(title="多 Agent 量化交易系统", version="2.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,12 +58,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 挂载路由
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(settings.router)
 app.include_router(agents.router)
 app.include_router(sources.router)
+app.include_router(news.router)
 app.include_router(recommend.router)
 app.include_router(review.router)
 app.include_router(knowledge.router)
@@ -65,13 +74,32 @@ app.include_router(workflow.router)
 
 @app.on_event("startup")
 async def startup():
+    global _news_scheduler
+
     validate_jwt_config()
     db = get_sqlite_client()
+
+    from backend.services.news_scheduler import NewsScheduler, should_disable_scheduler
+    from backend.services.settings_service import AgentConfigService, SettingsService
+    from backend.services.source_service import SourceService
     from backend.services.user_service import UserService
-    from backend.services.settings_service import SettingsService, AgentConfigService
+
     UserService(db).ensure_admin_exists()
     SettingsService(db).seed_defaults()
     AgentConfigService(db).seed_defaults()
+    SourceService(db).seed_defaults()
+
+    if not should_disable_scheduler():
+        _news_scheduler = NewsScheduler(db)
+        _news_scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    global _news_scheduler
+    if _news_scheduler is not None:
+        _news_scheduler.shutdown()
+        _news_scheduler = None
 
 
 @app.get("/api/health")
@@ -79,7 +107,6 @@ async def health():
     return {"status": "ok"}
 
 
-# 生产环境提供Vue前端静态文件
 _frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 if _frontend_dist.exists():
     app.mount("/assets", StaticFiles(directory=str(_frontend_dist / "assets")), name="assets")

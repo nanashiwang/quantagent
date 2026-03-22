@@ -1,7 +1,6 @@
 import sqlite3
-from pathlib import Path
-from typing import Optional
 from contextlib import contextmanager
+from pathlib import Path
 
 
 class SQLiteClient:
@@ -12,10 +11,7 @@ class SQLiteClient:
 
     def _init_tables(self):
         with self.get_connection() as conn:
-            cursor = conn.cursor()
-
-            # 事件简报表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS event_briefs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     date DATE NOT NULL,
@@ -25,20 +21,22 @@ class SQLiteClient:
                 )
             """)
 
-            # 股票数据表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS stock_data (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ts_code VARCHAR(10) NOT NULL,
                     trade_date DATE NOT NULL,
-                    open REAL, close REAL, high REAL, low REAL,
-                    volume REAL, amount REAL,
+                    open REAL,
+                    close REAL,
+                    high REAL,
+                    low REAL,
+                    volume REAL,
+                    amount REAL,
                     UNIQUE(ts_code, trade_date)
                 )
             """)
 
-            # 推荐结果表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS recommendations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     date DATE NOT NULL,
@@ -50,8 +48,7 @@ class SQLiteClient:
                 )
             """)
 
-            # 交易记录表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS trades (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ts_code VARCHAR(10) NOT NULL,
@@ -64,8 +61,7 @@ class SQLiteClient:
                 )
             """)
 
-            # 复盘记录表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS reviews (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     date DATE NOT NULL,
@@ -76,8 +72,7 @@ class SQLiteClient:
                 )
             """)
 
-            # 用户表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username VARCHAR(50) UNIQUE NOT NULL,
@@ -89,8 +84,7 @@ class SQLiteClient:
                 )
             """)
 
-            # 系统配置表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS system_settings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     category VARCHAR(50) NOT NULL,
@@ -103,8 +97,7 @@ class SQLiteClient:
                 )
             """)
 
-            # Agent配置表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS agent_configs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     cluster VARCHAR(20) NOT NULL,
@@ -120,8 +113,7 @@ class SQLiteClient:
                 )
             """)
 
-            # 资讯源配置表
-            cursor.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS news_sources (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name VARCHAR(100) NOT NULL,
@@ -134,7 +126,61 @@ class SQLiteClient:
                 )
             """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS news_articles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_id INTEGER REFERENCES news_sources(id),
+                    title TEXT NOT NULL,
+                    summary TEXT,
+                    content TEXT,
+                    url TEXT,
+                    published_at TIMESTAMP,
+                    content_hash VARCHAR(64) NOT NULL,
+                    symbols TEXT,
+                    tags TEXT,
+                    importance REAL DEFAULT 0.5,
+                    raw_payload TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            self._ensure_column(conn, "news_sources", "category", "VARCHAR(50) DEFAULT ''")
+            self._ensure_column(conn, "news_sources", "market", "VARCHAR(50) DEFAULT ''")
+            self._ensure_column(conn, "news_sources", "dedup_strategy", "VARCHAR(50) DEFAULT 'content_hash'")
+            self._ensure_column(conn, "news_sources", "parser", "VARCHAR(50) DEFAULT ''")
+            self._ensure_column(conn, "news_sources", "priority", "REAL DEFAULT 0.5")
+            self._ensure_column(conn, "news_sources", "credibility", "REAL DEFAULT 0.5")
+
+            conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_news_articles_unique_hash
+                ON news_articles(content_hash)
+            """)
+            conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_news_articles_unique_url
+                ON news_articles(url) WHERE url IS NOT NULL AND url != ''
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_news_articles_published_at
+                ON news_articles(published_at DESC)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_news_articles_source_published
+                ON news_articles(source_id, published_at DESC)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_event_briefs_date_source
+                ON event_briefs(date DESC, source)
+            """)
+
             conn.commit()
+
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, definition: str):
+        columns = {
+            row["name"]
+            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if column not in columns:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     @contextmanager
     def get_connection(self):

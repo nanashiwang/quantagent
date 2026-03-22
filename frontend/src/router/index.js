@@ -13,6 +13,9 @@ const routes = [
     component: () => import('../components/AppLayout.vue'),
     children: [
       { path: '', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
+      { path: 'profile', name: 'UserProfile', component: () => import('../views/users/UserProfile.vue') },
+      { path: 'news/articles', name: 'NewsArticles', component: () => import('../views/news/NewsArticles.vue') },
+      { path: 'news/briefs', name: 'NewsBriefs', component: () => import('../views/news/NewsBriefs.vue') },
       { path: 'settings/llm', name: 'LLMSettings', component: () => import('../views/settings/LLMSettings.vue'), meta: { admin: true } },
       { path: 'settings/tushare', name: 'TushareSettings', component: () => import('../views/settings/TushareSettings.vue'), meta: { admin: true } },
       { path: 'settings/database', name: 'DatabaseSettings', component: () => import('../views/settings/DatabaseSettings.vue'), meta: { admin: true } },

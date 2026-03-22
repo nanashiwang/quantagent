@@ -33,6 +33,12 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class ProfileUpdate(BaseModel):
+    username: Optional[str] = None
+    current_password: str
+    new_password: Optional[str] = None
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"

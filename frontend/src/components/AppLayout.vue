@@ -86,6 +86,7 @@
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item command="profile">个人中心</el-dropdown-item>
                   <el-dropdown-item command="logout">退出登录</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -129,6 +130,8 @@ const navGroups = [
     icon: DataAnalysis,
     items: [
       { path: '/review', label: '复盘分析', desc: '沉淀正确与错误决策样本' },
+      { path: '/news/articles', label: '资讯列表', desc: '查看自动采集入库的新闻、公告与宏观资讯' },
+      { path: '/news/briefs', label: '每日简报', desc: '集中查看系统生成的日度资讯摘要' },
       { path: '/knowledge', label: '知识库', desc: '维护热知识与冷知识资产' },
     ],
   },
@@ -144,11 +147,14 @@ const adminItems = [
 ]
 
 const routeMeta = {
+  '/profile': { title: '个人中心', description: '维护当前账号的登录信息与密码，保证个人凭证始终可控。' },
   '/': { title: '指挥台', description: '把推荐、交易、知识和工作流状态汇聚到一个更清晰的主视图。' },
   '/recommend': { title: '推荐看板', description: '用更直观的方式查看策略结果、权重变化与当日推荐。' },
   '/trades': { title: '交易记录', description: '跟踪真实交易数据，并把执行动作沉淀为可追溯的记录。' },
   '/backtest': { title: '回测系统', description: '快速验证参数区间，帮助策略在上线前更早暴露风险。' },
   '/review': { title: '复盘分析', description: '把正确与错误案例聚合起来，形成更高质量的经验闭环。' },
+  '/news/articles': { title: '资讯列表', description: '汇总自动采集入库的公告、监管、宏观和快讯内容，方便统一检索。' },
+  '/news/briefs': { title: '每日简报', description: '按日查看系统生成的资讯摘要，快速把握今日重要事件。' },
   '/knowledge': { title: '知识库', description: '管理模型沉淀出的高价值知识，让判断依据持续积累。' },
   '/settings/llm': { title: 'LLM 配置', description: '集中维护模型供应商、网关地址与调用连通性。' },
   '/settings/tushare': { title: 'Tushare 配置', description: '检查行情数据接入状态，保证策略输入稳定。' },
@@ -174,6 +180,10 @@ const todayLabel = new Intl.DateTimeFormat('zh-CN', {
 }).format(new Date())
 
 function handleCommand(command) {
+  if (command === 'profile') {
+    router.push('/profile')
+    return
+  }
   if (command === 'logout') {
     auth.logout()
     router.push('/login')
