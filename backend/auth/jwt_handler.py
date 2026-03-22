@@ -14,7 +14,9 @@ _INSECURE_SECRET_VALUES = {
     "your-super-secret-jwt-key",
 }
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 新密码优先使用 bcrypt_sha256，避免 bcrypt 原生 72 字节限制；
+# 同时保留 bcrypt 以兼容已存在的旧密码哈希。
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
