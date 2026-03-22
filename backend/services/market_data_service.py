@@ -37,6 +37,31 @@ def _parse_csv(value: str) -> List[str]:
     return [item.strip() for item in normalized.split(",") if item.strip()]
 
 
+def _infer_exchange_suffix(symbol: str) -> str:
+    if not symbol.isdigit() or len(symbol) != 6:
+        return ""
+    if symbol.startswith(("4", "8")):
+        return ".BJ"
+    if symbol.startswith(("5", "6", "9")):
+        return ".SH"
+    return ".SZ"
+
+
+def _normalize_symbol(symbol: str) -> str:
+    normalized = str(symbol or "").strip().upper()
+    if not normalized:
+        return ""
+    if "." in normalized:
+        return normalized
+
+    suffix = _infer_exchange_suffix(normalized)
+    return f"{normalized}{suffix}" if suffix else normalized
+
+
+def _normalize_symbols(symbols: List[str]) -> List[str]:
+    return [item for item in (_normalize_symbol(symbol) for symbol in symbols) if item]
+
+
 def _normalize_trade_date(value) -> str:
     if value in (None, ""):
         return ""
@@ -95,7 +120,7 @@ class MarketDataService:
             data_types = list(DEFAULT_DATA_TYPES)
 
         return {
-            "symbols": _parse_csv(self.settings.get_raw_value("market_data", "symbols") or ""),
+            "symbols": _normalize_symbols(_parse_csv(self.settings.get_raw_value("market_data", "symbols") or "")),
             "data_types": data_types,
             "fetch_interval": _parse_int(
                 self.settings.get_raw_value("market_data", "fetch_interval"),

@@ -112,6 +112,18 @@ class TestMarketDataService(unittest.TestCase):
         self.assertEqual(settings["end_date"], "")
         self.assertTrue(settings["auto_sync"])
 
+    def test_get_sync_settings_normalizes_plain_symbols(self):
+        self.settings.update_settings(
+            "market_data",
+            [
+                {"key": "symbols", "value": "688981,000001,430047", "is_secret": False},
+            ],
+        )
+
+        settings = self.service.get_sync_settings()
+
+        self.assertEqual(settings["symbols"], ["688981.SH", "000001.SZ", "430047.BJ"])
+
     def test_sync_configured_data_writes_daily_and_snapshot_rows(self):
         progress_events = []
         with patch("backend.services.market_data_service.TushareAPI", _FakeTushareAPI):

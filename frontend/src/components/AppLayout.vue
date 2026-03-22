@@ -62,11 +62,6 @@
           </el-menu>
         </div>
 
-        <div class="aside-footer glass-surface">
-          <span>会话状态</span>
-          <strong>{{ auth.isAdmin ? '管理员模式' : '标准模式' }}</strong>
-          <small>当前界面已切换为更轻盈的玻璃化视觉层。</small>
-        </div>
       </el-aside>
 
       <el-container class="layout-content">
@@ -413,26 +408,6 @@ watch(
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-
-.aside-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: none;
-}
-
-.aside-footer span,
-.aside-footer small {
-  color: rgba(243, 248, 255, 0.66);
-}
-
-.aside-footer strong {
-  color: #ffffff;
-  font-size: 16px;
 }
 
 .layout-content {

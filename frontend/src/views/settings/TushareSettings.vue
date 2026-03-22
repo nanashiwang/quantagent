@@ -76,7 +76,7 @@
             :rows="4"
             placeholder="000001.SZ,600519.SH,159915.SZ"
           />
-          <div class="settings-tip">支持英文逗号、中文逗号或换行分隔，建议先从 3 到 10 只核心标的开始。</div>
+          <div class="settings-tip">支持英文逗号、中文逗号或换行分隔；如果只填 6 位代码，系统会自动补全为 `.SH/.SZ/.BJ`。</div>
         </el-form-item>
 
         <el-form-item label="拉取信息">
@@ -400,6 +400,36 @@ function formatDate(date) {
   return `${year}-${month}-${day}`
 }
 
+function normalizeSymbol(symbol) {
+  const normalized = String(symbol || '').trim().toUpperCase()
+  if (!normalized) {
+    return ''
+  }
+  if (normalized.includes('.')) {
+    return normalized
+  }
+  if (/^\d{6}$/.test(normalized)) {
+    if (/^[48]/.test(normalized)) {
+      return `${normalized}.BJ`
+    }
+    if (/^[569]/.test(normalized)) {
+      return `${normalized}.SH`
+    }
+    return `${normalized}.SZ`
+  }
+  return normalized
+}
+
+function normalizeSymbolsText(value) {
+  return String(value || '')
+    .replaceAll('\n', ',')
+    .replaceAll('，', ',')
+    .split(',')
+    .map(item => normalizeSymbol(item))
+    .filter(Boolean)
+    .join(',')
+}
+
 function buildConnectionSettingsPayload() {
   return {
     settings: [
@@ -413,7 +443,7 @@ function buildMarketSettingsPayload() {
   const [startDate = '', endDate = ''] = syncDateRange.value || []
   return {
     settings: [
-      { key: 'symbols', value: marketForm.value.symbols, is_secret: false },
+      { key: 'symbols', value: normalizeSymbolsText(marketForm.value.symbols), is_secret: false },
       { key: 'data_types', value: marketForm.value.data_types.join(','), is_secret: false },
       { key: 'fetch_interval', value: String(marketForm.value.fetch_interval), is_secret: false },
       { key: 'history_days', value: String(marketForm.value.history_days), is_secret: false },
@@ -465,7 +495,7 @@ async function loadConnectionSettings() {
 async function loadMarketSettings() {
   const res = await getSettings('market_data')
   const map = Object.fromEntries((res.settings || []).map(item => [item.key, item.value]))
-  marketForm.value.symbols = map.symbols || ''
+  marketForm.value.symbols = normalizeSymbolsText(map.symbols || '')
   marketForm.value.data_types = parseList(map.data_types, ['daily', 'daily_basic', 'moneyflow'])
   marketForm.value.fetch_interval = parseInteger(map.fetch_interval, 3600)
   marketForm.value.history_days = parseInteger(map.history_days, 30)
