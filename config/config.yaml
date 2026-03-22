@@ -15,6 +15,8 @@ market_data:
   data_types: "${MARKET_DATA_TYPES:-daily,daily_basic,moneyflow}"
   fetch_interval: "${MARKET_DATA_FETCH_INTERVAL:-3600}"
   history_days: "${MARKET_DATA_HISTORY_DAYS:-30}"
+  start_date: "${MARKET_DATA_START_DATE:-}"
+  end_date: "${MARKET_DATA_END_DATE:-}"
   auto_sync: "${MARKET_DATA_AUTO_SYNC:-false}"
 
 database:

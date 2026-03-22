@@ -40,6 +40,8 @@ class TestConfig(unittest.TestCase):
                       data_types: "${TEST_MARKET_DATA_TYPES:-daily,daily_basic,moneyflow}"
                       fetch_interval: "${TEST_MARKET_DATA_FETCH_INTERVAL:-3600}"
                       history_days: "${TEST_MARKET_DATA_HISTORY_DAYS:-30}"
+                      start_date: "${TEST_MARKET_DATA_START_DATE:-}"
+                      end_date: "${TEST_MARKET_DATA_END_DATE:-}"
                       auto_sync: "${TEST_MARKET_DATA_AUTO_SYNC:-false}"
 
                     database:
@@ -72,6 +74,8 @@ class TestConfig(unittest.TestCase):
             self.assertEqual(config.market_data.data_types, "daily,daily_basic,moneyflow")
             self.assertEqual(config.market_data.fetch_interval, 3600)
             self.assertEqual(config.market_data.history_days, 30)
+            self.assertEqual(config.market_data.start_date, "")
+            self.assertEqual(config.market_data.end_date, "")
             self.assertFalse(config.market_data.auto_sync)
             self.assertEqual(config.database.mongodb.uri, "mongodb://mongo:27017")
             self.assertEqual(config.database.sqlite.path, "data/sqlite/trading.db")
@@ -104,6 +108,8 @@ class TestConfig(unittest.TestCase):
                       data_types: "daily"
                       fetch_interval: 3600
                       history_days: 10
+                      start_date: ""
+                      end_date: ""
                       auto_sync: false
 
                     database:

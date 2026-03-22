@@ -52,6 +52,16 @@ def _normalize_trade_date(value) -> str:
     return text[:10]
 
 
+def _parse_sync_date(value) -> Optional[datetime]:
+    normalized = _normalize_trade_date(value)
+    if not normalized:
+        return None
+    try:
+        return datetime.strptime(normalized, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
 def _clean_value(value):
     if isinstance(value, datetime):
         return value.isoformat(sep=" ", timespec="seconds")
@@ -89,6 +99,8 @@ class MarketDataService:
                 default=30,
                 minimum=1,
             ),
+            "start_date": _normalize_trade_date(self.settings.get_raw_value("market_data", "start_date") or ""),
+            "end_date": _normalize_trade_date(self.settings.get_raw_value("market_data", "end_date") or ""),
             "auto_sync": _parse_bool(self.settings.get_raw_value("market_data", "auto_sync")),
         }
 
@@ -131,8 +143,7 @@ class MarketDataService:
             raise ValueError("请先配置 Tushare Token")
         api_url = self.settings.get_raw_value("tushare", "api_url") or ""
 
-        end_dt = datetime.now()
-        start_dt = end_dt - timedelta(days=settings["history_days"])
+        start_dt, end_dt = self._resolve_sync_window(settings)
         end_date = end_dt.strftime("%Y%m%d")
         start_date = start_dt.strftime("%Y%m%d")
 
@@ -165,8 +176,8 @@ class MarketDataService:
             raise
 
         message = (
-            f"{trigger} 同步完成，股票 {len(symbols)} 只，"
-            f"日线 {daily_rows} 行，扩展指标 {snapshot_rows} 行"
+            f"{trigger} 同步完成，区间 {start_dt.strftime('%Y-%m-%d')} ~ {end_dt.strftime('%Y-%m-%d')}，"
+            f"股票 {len(symbols)} 只，日线 {daily_rows} 行，扩展指标 {snapshot_rows} 行"
         )
         self._update_runtime("success", message)
         return {
@@ -201,6 +212,11 @@ class MarketDataService:
                 "records": [],
                 "price_series": [],
                 "latest_summary": {},
+                "sync_window": {
+                    "start_date": settings["start_date"],
+                    "end_date": settings["end_date"],
+                    "history_days": settings["history_days"],
+                },
                 "runtime": runtime,
             }
 
@@ -240,6 +256,11 @@ class MarketDataService:
             "records": records,
             "price_series": price_series,
             "latest_summary": latest_summary,
+            "sync_window": {
+                "start_date": settings["start_date"],
+                "end_date": settings["end_date"],
+                "history_days": settings["history_days"],
+            },
             "runtime": runtime,
         }
 
@@ -303,6 +324,21 @@ class MarketDataService:
         values.append(limit)
         with self.db.get_connection() as conn:
             return conn.execute(sql, values).fetchall()
+
+    def _resolve_sync_window(self, settings: Dict) -> tuple[datetime, datetime]:
+        explicit_start = _parse_sync_date(settings.get("start_date"))
+        explicit_end = _parse_sync_date(settings.get("end_date"))
+
+        if explicit_start or explicit_end:
+            end_dt = explicit_end or datetime.now()
+            start_dt = explicit_start or (end_dt - timedelta(days=settings["history_days"]))
+        else:
+            end_dt = datetime.now()
+            start_dt = end_dt - timedelta(days=settings["history_days"])
+
+        if start_dt > end_dt:
+            raise ValueError("拉取时间范围不正确：开始日期不能晚于结束日期")
+        return start_dt, end_dt
 
     def _store_daily_rows(self, frame: Optional[pd.DataFrame]) -> int:
         if frame is None or frame.empty:

@@ -10,6 +10,7 @@ class MarketDataOverviewOut(BaseModel):
     records: List[Dict[str, Any]] = Field(default_factory=list)
     price_series: List[Dict[str, Any]] = Field(default_factory=list)
     latest_summary: Dict[str, Any] = Field(default_factory=dict)
+    sync_window: Dict[str, Any] = Field(default_factory=dict)
     runtime: Dict[str, Any] = Field(default_factory=dict)
 
 

@@ -62,7 +62,7 @@
         <div class="panel-toolbar">
           <div class="panel-toolbar__copy">
             <div class="panel-title">行情拉取策略</div>
-            <div class="panel-subtitle">决定拉哪些股票、拉什么信息、多久自动同步一次，以及回看多少天历史数据。</div>
+            <div class="panel-subtitle">决定拉哪些股票、拉什么信息、多久自动同步一次，以及按固定区间或历史天数拉取数据。</div>
           </div>
           <span class="section-tag">Sync Policy</span>
         </div>
@@ -86,6 +86,19 @@
             </el-checkbox>
           </el-checkbox-group>
           <div class="settings-tip">日线行情适合画图，基础指标和资金流向适合表格分析，龙虎榜适合事件补充。</div>
+        </el-form-item>
+
+        <el-form-item label="拉取时间范围">
+          <el-date-picker
+            v-model="syncDateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            clearable
+          />
+          <div class="settings-tip">如果这里选了开始和结束日期，系统会优先按这个区间拉取；留空时才按下面的历史天数滚动更新。</div>
         </el-form-item>
 
         <div class="settings-grid">
@@ -154,6 +167,7 @@ const marketForm = ref({
   history_days: 30,
   auto_sync: false,
 })
+const syncDateRange = ref([])
 const runtimeStatus = ref({
   last_sync_at: '',
   last_sync_status: '',
@@ -201,12 +215,15 @@ function buildConnectionSettingsPayload() {
 }
 
 function buildMarketSettingsPayload() {
+  const [startDate = '', endDate = ''] = syncDateRange.value || []
   return {
     settings: [
       { key: 'symbols', value: marketForm.value.symbols, is_secret: false },
       { key: 'data_types', value: marketForm.value.data_types.join(','), is_secret: false },
       { key: 'fetch_interval', value: String(marketForm.value.fetch_interval), is_secret: false },
       { key: 'history_days', value: String(marketForm.value.history_days), is_secret: false },
+      { key: 'start_date', value: startDate, is_secret: false },
+      { key: 'end_date', value: endDate, is_secret: false },
       { key: 'auto_sync', value: String(marketForm.value.auto_sync), is_secret: false },
     ],
   }
@@ -239,6 +256,7 @@ async function loadMarketSettings() {
   marketForm.value.fetch_interval = parseInteger(map.fetch_interval, 3600)
   marketForm.value.history_days = parseInteger(map.history_days, 30)
   marketForm.value.auto_sync = parseBoolean(map.auto_sync)
+  syncDateRange.value = map.start_date && map.end_date ? [map.start_date, map.end_date] : []
 }
 
 async function loadRuntimeSettings() {

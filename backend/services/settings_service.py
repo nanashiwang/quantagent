@@ -79,6 +79,8 @@ class SettingsService:
                 ("market_data", "data_types", config.market_data.data_types, False),
                 ("market_data", "fetch_interval", str(config.market_data.fetch_interval), False),
                 ("market_data", "history_days", str(config.market_data.history_days), False),
+                ("market_data", "start_date", config.market_data.start_date, False),
+                ("market_data", "end_date", config.market_data.end_date, False),
                 ("market_data", "auto_sync", str(config.market_data.auto_sync).lower(), False),
             ]
             with self.db.get_connection() as conn:

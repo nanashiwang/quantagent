@@ -84,6 +84,8 @@ class TestMarketDataService(unittest.TestCase):
                 {"key": "data_types", "value": "daily,daily_basic,moneyflow", "is_secret": False},
                 {"key": "fetch_interval", "value": "3600", "is_secret": False},
                 {"key": "history_days", "value": "15", "is_secret": False},
+                {"key": "start_date", "value": "", "is_secret": False},
+                {"key": "end_date", "value": "", "is_secret": False},
                 {"key": "auto_sync", "value": "true", "is_secret": False},
             ],
         )
@@ -99,6 +101,8 @@ class TestMarketDataService(unittest.TestCase):
         self.assertEqual(settings["data_types"], ["daily", "daily_basic", "moneyflow"])
         self.assertEqual(settings["fetch_interval"], 3600)
         self.assertEqual(settings["history_days"], 15)
+        self.assertEqual(settings["start_date"], "")
+        self.assertEqual(settings["end_date"], "")
         self.assertTrue(settings["auto_sync"])
 
     def test_sync_configured_data_writes_daily_and_snapshot_rows(self):
@@ -119,3 +123,19 @@ class TestMarketDataService(unittest.TestCase):
         self.assertEqual(record["pe"], 15.6)
         self.assertEqual(record["net_mf_amount"], 500)
         self.assertEqual(overview["runtime"]["last_sync_status"], "success")
+        self.assertEqual(overview["sync_window"]["history_days"], 15)
+
+    def test_sync_configured_data_respects_explicit_date_range(self):
+        self.settings.update_settings(
+            "market_data",
+            [
+                {"key": "start_date", "value": "2026-03-01", "is_secret": False},
+                {"key": "end_date", "value": "2026-03-20", "is_secret": False},
+            ],
+        )
+
+        with patch("backend.services.market_data_service.TushareAPI", _FakeTushareAPI):
+            result = self.service.sync_configured_data()
+
+        self.assertEqual(result["range_start"], "2026-03-01")
+        self.assertEqual(result["range_end"], "2026-03-20")

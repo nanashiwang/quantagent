@@ -27,6 +27,8 @@ class MarketDataConfig(BaseSettings):
     data_types: str = "daily,daily_basic,moneyflow"
     fetch_interval: int = 3600
     history_days: int = 30
+    start_date: str = ""
+    end_date: str = ""
     auto_sync: bool = False
 
 
