@@ -6,6 +6,7 @@ from ..models.market_data import (
     MarketDataSyncRequest,
     MarketDataSyncStartOut,
     MarketDataSyncStatusOut,
+    StockSearchOut,
 )
 from ..services.market_data_service import MarketDataService
 from ..services.market_data_sync_runner import MarketDataSyncRunner
@@ -34,6 +35,27 @@ async def get_market_data_overview(
         limit=limit,
     )
     return MarketDataOverviewOut(**result)
+
+
+@router.get("/stocks/search", response_model=StockSearchOut)
+async def search_market_stocks(
+    q: str = "",
+    market: str = "",
+    area: str = "",
+    industry: str = "",
+    limit: int = Query(default=20, ge=1, le=10000),
+    refresh: bool = False,
+    _=Depends(require_admin),
+):
+    result = _get_service().search_stock_candidates(
+        query=q,
+        market=market,
+        area=area,
+        industry=industry,
+        limit=limit,
+        refresh=refresh,
+    )
+    return StockSearchOut(**result)
 
 
 @router.post("/sync", response_model=MarketDataSyncStartOut)

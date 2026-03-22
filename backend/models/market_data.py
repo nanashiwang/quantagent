@@ -14,6 +14,27 @@ class MarketDataOverviewOut(BaseModel):
     runtime: Dict[str, Any] = Field(default_factory=dict)
 
 
+class StockSearchItemOut(BaseModel):
+    ts_code: str
+    symbol: str = ""
+    name: str = ""
+    area: str = ""
+    industry: str = ""
+    market: str = ""
+
+
+class StockSearchOut(BaseModel):
+    query: str = ""
+    market: str = ""
+    area: str = ""
+    industry: str = ""
+    total: int = 0
+    items: List[StockSearchItemOut] = Field(default_factory=list)
+    markets: List[str] = Field(default_factory=list)
+    areas: List[str] = Field(default_factory=list)
+    industries: List[str] = Field(default_factory=list)
+
+
 class MarketDataSyncResult(BaseModel):
     success: bool
     status: str = ""

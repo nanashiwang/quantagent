@@ -87,6 +87,50 @@ class TestMarketDataRouter(unittest.TestCase):
         self.assertEqual(body["errors"], ["600519.SH 资金流向: timeout"])
         mock_get.assert_called_once_with(sync_id="market_data_001")
 
+    def test_stock_search_endpoint_returns_candidates(self):
+        with patch(
+            "backend.routers.market_data._get_service",
+        ) as mock_get_service:
+            mock_get_service.return_value.search_stock_candidates.return_value = {
+                "query": "中芯",
+                "market": "科创板",
+                "area": "上海",
+                "industry": "半导体",
+                "total": 1,
+                "items": [
+                    {
+                        "ts_code": "688981.SH",
+                        "symbol": "688981",
+                        "name": "中芯国际",
+                        "area": "上海",
+                        "industry": "半导体",
+                        "market": "科创板",
+                    }
+                ],
+                "markets": ["主板", "创业板", "科创板"],
+                "areas": ["上海", "深圳", "贵州"],
+                "industries": ["半导体", "电池", "白酒"],
+            }
+            with TestClient(backend_app_module.app) as client:
+                response = client.get(
+                    "/api/market-data/stocks/search",
+                    headers=self._auth_headers(),
+                    params={"q": "中芯", "market": "科创板", "area": "上海", "industry": "半导体", "limit": 50},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["items"][0]["name"], "中芯国际")
+        mock_get_service.return_value.search_stock_candidates.assert_called_once_with(
+            query="中芯",
+            market="科创板",
+            area="上海",
+            industry="半导体",
+            limit=50,
+            refresh=False,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

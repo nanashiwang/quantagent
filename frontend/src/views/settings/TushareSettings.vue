@@ -69,13 +69,182 @@
       </template>
 
       <el-form :model="marketForm" label-width="120px" class="settings-form">
+        <el-form-item label="全市场检索">
+          <div class="stock-search-panel">
+            <div class="stock-search-toolbar">
+              <el-select
+                v-model="stockSearchSelection"
+                class="stock-search-select"
+                multiple
+                filterable
+                remote
+                reserve-keyword
+                collapse-tags
+                collapse-tags-tooltip
+                default-first-option
+                placeholder="输入股票代码、简称或 ts_code，直接从全市场搜索"
+                :remote-method="handleStockSearch"
+                :loading="stockSearchLoading"
+                @visible-change="handleStockSearchVisibleChange"
+              >
+                <el-option
+                  v-for="item in stockSearchResults"
+                  :key="item.ts_code"
+                  :label="formatStockOptionLabel(item)"
+                  :value="item.ts_code"
+                  :disabled="isStockInPool(item.ts_code)"
+                >
+                  <div class="stock-option">
+                    <div class="stock-option__main">
+                      <strong>{{ item.name || item.ts_code }}</strong>
+                      <span>{{ item.ts_code }}</span>
+                    </div>
+                    <div class="stock-option__meta">
+                      <div class="stock-option__badges">
+                        <el-tag v-if="item.market" size="small" effect="plain">{{ item.market }}</el-tag>
+                        <el-tag v-if="item.industry" size="small" effect="plain">{{ item.industry }}</el-tag>
+                        <el-tag v-if="item.area" size="small" effect="plain">{{ item.area }}</el-tag>
+                        <el-tag v-if="isStockInPool(item.ts_code)" size="small" type="success">已在股票池中</el-tag>
+                      </div>
+                    </div>
+                  </div>
+                </el-option>
+              </el-select>
+            </div>
+
+            <div class="stock-filter-grid">
+              <el-select
+                v-model="stockMarketFilter"
+                class="stock-market-filter"
+                placeholder="全部板块"
+                clearable
+                @change="handleStockMarketChange"
+              >
+                <el-option label="全部板块" value="" />
+                <el-option
+                  v-for="item in stockMarketOptions"
+                  :key="item"
+                  :label="item"
+                  :value="item"
+                />
+              </el-select>
+
+              <el-select
+                v-model="stockIndustryFilter"
+                class="stock-market-filter"
+                placeholder="全部行业"
+                clearable
+                filterable
+                @change="handleStockIndustryChange"
+              >
+                <el-option label="全部行业" value="" />
+                <el-option
+                  v-for="item in stockIndustryOptions"
+                  :key="item"
+                  :label="item"
+                  :value="item"
+                />
+              </el-select>
+
+              <el-select
+                v-model="stockAreaFilter"
+                class="stock-market-filter"
+                placeholder="全部地区"
+                clearable
+                filterable
+                @change="handleStockAreaChange"
+              >
+                <el-option label="全部地区" value="" />
+                <el-option
+                  v-for="item in stockAreaOptions"
+                  :key="item"
+                  :label="item"
+                  :value="item"
+                />
+              </el-select>
+            </div>
+
+            <div class="stock-search-actions">
+              <el-button plain :disabled="!stockSearchSelection.length" @click="addSelectedStocksToPool">
+                加入选中股票
+              </el-button>
+              <el-button plain :disabled="!stockSearchResults.length" @click="addSearchResultsToPool">
+                加入当前显示结果
+              </el-button>
+              <el-button
+                plain
+                :loading="addingFilteredStocks"
+                @click="addAllFilteredStocksToPool"
+              >
+                批量加入全部筛选结果
+              </el-button>
+              <el-button text @click="refreshStockCatalog">
+                刷新股票列表
+              </el-button>
+            </div>
+
+            <div class="settings-tip">
+              当前匹配 {{ stockSearchTotal }} 条结果。可以按板块、行业、地区进一步筛选，再批量加入股票池，省去逐个录入代码的麻烦。
+            </div>
+            <div class="settings-tip">
+              “批量加入全部筛选结果”只会填充股票池，不会自动开始同步；股票数量越多，后续补数和增量同步耗时会越长。
+            </div>
+          </div>
+        </el-form-item>
+
         <el-form-item label="股票池">
-          <el-input
-            v-model="marketForm.symbols"
-            type="textarea"
-            :rows="4"
-            placeholder="000001.SZ,600519.SH,159915.SZ"
-          />
+          <div class="stock-pool-panel">
+            <div class="stock-pool-toolbar">
+              <el-input
+                v-model="manualPoolInput"
+                placeholder="手动补充股票，支持一次粘贴多个代码，用逗号或换行分隔"
+                @keyup.enter="addManualSymbolsToPool"
+              />
+              <el-button plain @click="addManualSymbolsToPool">
+                手动加入
+              </el-button>
+              <el-button text :disabled="poolStockItems.length < 2" @click="sortPoolSymbolsByCode">
+                按代码排序
+              </el-button>
+            </div>
+
+            <div class="stock-pool-summary">
+              <span>当前股票池共 {{ poolStockItems.length }} 只股票</span>
+              <small>标签式管理支持上移、下移和移除，保存时会按当前顺序写入配置。</small>
+            </div>
+
+            <div v-if="poolStockItems.length" class="stock-pool-grid">
+              <article v-for="item in poolStockItems" :key="item.ts_code" class="stock-pool-card glass-surface">
+                <div class="stock-pool-card__copy">
+                  <strong>{{ item.name || item.ts_code }}</strong>
+                  <span>{{ item.ts_code }}</span>
+                </div>
+                <div class="stock-pool-card__meta">
+                  <el-tag v-if="item.market" size="small" effect="plain">{{ item.market }}</el-tag>
+                  <el-tag v-if="item.industry" size="small" effect="plain">{{ item.industry }}</el-tag>
+                  <el-tag v-if="item.area" size="small" effect="plain">{{ item.area }}</el-tag>
+                </div>
+                <div class="stock-pool-card__actions">
+                  <el-button text size="small" :disabled="item.index === 0" @click="movePoolSymbol(item.index, -1)">
+                    上移
+                  </el-button>
+                  <el-button
+                    text
+                    size="small"
+                    :disabled="item.index === poolStockItems.length - 1"
+                    @click="movePoolSymbol(item.index, 1)"
+                  >
+                    下移
+                  </el-button>
+                  <el-button text size="small" type="danger" @click="removePoolSymbol(item.ts_code)">
+                    移除
+                  </el-button>
+                </div>
+              </article>
+            </div>
+            <el-empty v-else description="还没有加入任何股票，先从上面的全市场检索里选择一些标的吧。" />
+          </div>
+
           <div class="settings-tip">支持英文逗号、中文逗号或换行分隔；如果只填 6 位代码，系统会自动补全为 `.SH/.SZ/.BJ`。</div>
           <el-alert
             v-if="symbolValidation.invalidSymbols.length"
@@ -277,7 +446,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { getMarketDataSyncStatus, syncMarketData } from '../../api/index'
+import { getMarketDataSyncStatus, searchMarketStocks, syncMarketData } from '../../api/index'
 import { getSettings, testTushare, updateSettings } from '../../api/settings'
 
 const datasetOptions = [
@@ -302,6 +471,19 @@ const runtimeStatus = ref({
   last_sync_status: '',
   last_sync_message: '',
 })
+const stockSearchSelection = ref([])
+const stockSearchResults = ref([])
+const stockMarketFilter = ref('')
+const stockAreaFilter = ref('')
+const stockIndustryFilter = ref('')
+const stockMarketOptions = ref([])
+const stockAreaOptions = ref([])
+const stockIndustryOptions = ref([])
+const stockSearchLoading = ref(false)
+const stockSearchTotal = ref(0)
+const addingFilteredStocks = ref(false)
+const manualPoolInput = ref('')
+const stockMetaMap = ref({})
 const syncStatus = ref(createEmptySyncStatus())
 const activeSyncId = ref('')
 const connectionSaving = ref(false)
@@ -313,12 +495,28 @@ const testResult = ref(null)
 const tokenPlaceholder = ref('Tushare Pro Token')
 
 let syncPollingTimer = null
+let stockSearchKeyword = ''
 
 const todayDateLabel = formatDate(new Date())
 const isSyncRunning = computed(() => syncStatus.value.status === 'running')
 const syncActionLabel = computed(() => `立即拉取（${syncModeLabel(syncMode.value)}）`)
 const symbolValidation = computed(() => buildSymbolValidation(marketForm.value.symbols))
 const dateRangeValidation = computed(() => buildDateRangeValidation(syncDateRange.value))
+const poolSymbols = computed(() => getPoolSymbols())
+const poolSymbolSet = computed(() => new Set(poolSymbols.value))
+const poolStockItems = computed(() =>
+  poolSymbols.value.map((tsCode, index) => {
+    const meta = stockMetaMap.value[tsCode] || {}
+    return {
+      index,
+      ts_code: tsCode,
+      name: meta.name || '',
+      market: meta.market || '',
+      area: meta.area || '',
+      industry: meta.industry || '',
+    }
+  }),
+)
 const syncStatusLabel = computed(() => {
   const labelMap = {
     idle: '待执行',
@@ -498,6 +696,89 @@ function buildDateRangeValidation(range) {
   }
 }
 
+function formatStockOptionLabel(item) {
+  const name = item?.name || ''
+  const tsCode = item?.ts_code || ''
+  const market = item?.market || ''
+  return [name, tsCode, market].filter(Boolean).join(' / ')
+}
+
+function cacheStockMeta(items = []) {
+  if (!items.length) {
+    return
+  }
+
+  stockMetaMap.value = {
+    ...stockMetaMap.value,
+    ...Object.fromEntries(
+      items
+        .filter(item => item?.ts_code)
+        .map(item => [
+          item.ts_code,
+          {
+            name: item.name || '',
+            market: item.market || '',
+            area: item.area || '',
+            industry: item.industry || '',
+          },
+        ]),
+    ),
+  }
+}
+
+function isStockInPool(tsCode) {
+  return poolSymbolSet.value.has(tsCode)
+}
+
+function getPoolSymbols() {
+  return normalizeSymbolsText(marketForm.value.symbols)
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function setPoolSymbols(symbols) {
+  const normalized = Array.from(new Set(symbols.map(item => normalizeSymbol(item)).filter(Boolean)))
+  marketForm.value.symbols = normalized.join(',')
+}
+
+function mergeSymbolsIntoPool(symbols) {
+  const merged = [...getPoolSymbols(), ...symbols]
+  setPoolSymbols(merged)
+}
+
+function addManualSymbolsToPool() {
+  const normalized = normalizeSymbolsText(manualPoolInput.value)
+  if (!normalized) {
+    ElMessage.warning('请输入要加入股票池的股票代码')
+    return
+  }
+  mergeSymbolsIntoPool(normalized.split(','))
+  manualPoolInput.value = ''
+  ElMessage.success('已把手动输入的股票加入股票池')
+}
+
+function removePoolSymbol(tsCode) {
+  setPoolSymbols(getPoolSymbols().filter(item => item !== tsCode))
+}
+
+function movePoolSymbol(index, offset) {
+  const symbols = [...getPoolSymbols()]
+  const targetIndex = index + offset
+  if (targetIndex < 0 || targetIndex >= symbols.length) {
+    return
+  }
+  const [current] = symbols.splice(index, 1)
+  symbols.splice(targetIndex, 0, current)
+  setPoolSymbols(symbols)
+}
+
+function sortPoolSymbolsByCode() {
+  const symbols = [...getPoolSymbols()].sort((left, right) => left.localeCompare(right, 'zh-CN'))
+  setPoolSymbols(symbols)
+  ElMessage.success('股票池已按代码排序')
+}
+
 function validateMarketSettings({ forSync = false } = {}) {
   if (symbolValidation.value.invalidSymbols.length) {
     ElMessage.error('股票池里存在格式不正确的代码，请先修正后再保存或同步')
@@ -537,11 +818,113 @@ function buildMarketSettingsPayload() {
   }
 }
 
+async function fetchStockCandidates(query = '', refresh = false, limit = 50) {
+  stockSearchLoading.value = true
+  try {
+    const result = await searchMarketStocks({
+      q: query,
+      market: stockMarketFilter.value,
+      area: stockAreaFilter.value,
+      industry: stockIndustryFilter.value,
+      limit,
+      refresh,
+    })
+    stockSearchResults.value = result.items || []
+    stockMarketOptions.value = result.markets || []
+    stockAreaOptions.value = result.areas || []
+    stockIndustryOptions.value = result.industries || []
+    stockSearchTotal.value = result.total || 0
+    cacheStockMeta(result.items || [])
+  } catch (error) {
+    stockSearchResults.value = []
+    stockSearchTotal.value = 0
+    ElMessage.error(getErrorMessage(error, '股票列表加载失败'))
+  } finally {
+    stockSearchLoading.value = false
+  }
+}
+
 function stopSyncPolling() {
   if (syncPollingTimer) {
     window.clearTimeout(syncPollingTimer)
     syncPollingTimer = null
   }
+}
+
+function handleStockSearch(query) {
+  stockSearchKeyword = query || ''
+  fetchStockCandidates(stockSearchKeyword, false, 50)
+}
+
+function handleStockSearchVisibleChange(visible) {
+  if (!visible || stockSearchResults.value.length) {
+    return
+  }
+  fetchStockCandidates('', false, 50)
+}
+
+function handleStockMarketChange() {
+  fetchStockCandidates(stockSearchKeyword, false, 50)
+}
+
+function handleStockAreaChange() {
+  fetchStockCandidates(stockSearchKeyword, false, 50)
+}
+
+function handleStockIndustryChange() {
+  fetchStockCandidates(stockSearchKeyword, false, 50)
+}
+
+function addSelectedStocksToPool() {
+  if (!stockSearchSelection.value.length) {
+    return
+  }
+  mergeSymbolsIntoPool(stockSearchSelection.value)
+  ElMessage.success(`已加入 ${stockSearchSelection.value.length} 只股票到股票池`)
+  stockSearchSelection.value = []
+}
+
+function addSearchResultsToPool() {
+  if (!stockSearchResults.value.length) {
+    return
+  }
+  mergeSymbolsIntoPool(stockSearchResults.value.map(item => item.ts_code))
+  ElMessage.success(`已加入当前搜索结果，共 ${stockSearchResults.value.length} 只股票`)
+}
+
+async function addAllFilteredStocksToPool() {
+  if (!stockMarketFilter.value && !stockAreaFilter.value && !stockIndustryFilter.value && !stockSearchKeyword) {
+    ElMessage.warning('请至少设置一个搜索关键词或筛选条件，再批量加入全部筛选结果')
+    return
+  }
+
+  addingFilteredStocks.value = true
+  try {
+    const result = await searchMarketStocks({
+      q: stockSearchKeyword,
+      market: stockMarketFilter.value,
+      area: stockAreaFilter.value,
+      industry: stockIndustryFilter.value,
+      limit: 10000,
+    })
+    const items = result.items || []
+    mergeSymbolsIntoPool(items.map(item => item.ts_code))
+    cacheStockMeta(items)
+    stockSearchResults.value = items
+    stockSearchTotal.value = result.total || items.length
+    stockMarketOptions.value = result.markets || stockMarketOptions.value
+    stockAreaOptions.value = result.areas || stockAreaOptions.value
+    stockIndustryOptions.value = result.industries || stockIndustryOptions.value
+    ElMessage.success(`已把全部筛选结果加入股票池，共 ${items.length} 只股票`)
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '批量加载筛选股票失败'))
+  } finally {
+    addingFilteredStocks.value = false
+  }
+}
+
+function refreshStockCatalog() {
+  fetchStockCandidates(stockSearchKeyword, true, 50)
 }
 
 function applyPresetRange(days) {
@@ -784,6 +1167,153 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
+.stock-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.stock-search-toolbar {
+  display: flex;
+  width: 100%;
+}
+
+.stock-search-select,
+.stock-market-filter {
+  width: 100%;
+}
+
+.stock-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.stock-search-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stock-option {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stock-option__main,
+.stock-option__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stock-option__main strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.stock-option__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.stock-option__main span,
+.stock-option__meta span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.stock-pool-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(120, 148, 180, 0.24);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(244, 249, 255, 0.58)),
+    radial-gradient(circle at top right, rgba(108, 167, 246, 0.18), transparent 52%);
+  backdrop-filter: blur(18px);
+}
+
+.stock-pool-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.stock-pool-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.stock-pool-summary span {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stock-pool-summary small {
+  line-height: 1.7;
+}
+
+.stock-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.stock-pool-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 164px;
+  padding: 16px;
+  border: 1px solid rgba(120, 148, 180, 0.18);
+}
+
+.stock-pool-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stock-pool-card__copy strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.stock-pool-card__copy span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.stock-pool-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.stock-pool-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
 .settings-tip {
   margin-top: 8px;
   color: var(--el-text-color-secondary);
@@ -965,6 +1495,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 960px) {
+  .stock-filter-grid,
   .settings-grid,
   .runtime-grid,
   .checkbox-grid,
@@ -975,6 +1506,28 @@ onBeforeUnmount(() => {
 
   .sync-monitor__header {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 720px) {
+  .stock-option {
+    flex-direction: column;
+  }
+
+  .stock-option__badges {
+    justify-content: flex-start;
+  }
+
+  .stock-pool-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-pool-summary {
+    align-items: flex-start;
+  }
+
+  .stock-pool-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

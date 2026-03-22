@@ -1,5 +1,6 @@
 import json
 import re
+import threading
 from datetime import datetime, timedelta
 from typing import Callable, Dict, List, Optional
 
@@ -14,6 +15,14 @@ SUPPORTED_DATA_TYPES = ("daily", "daily_basic", "moneyflow", "top_list")
 DEFAULT_DATA_TYPES = ("daily", "daily_basic", "moneyflow")
 SUPPORTED_SYNC_MODES = ("incremental", "backfill")
 TS_CODE_PATTERN = re.compile(r"^\d{6}\.(SH|SZ|BJ)$")
+STOCK_CATALOG_CACHE_TTL = timedelta(hours=6)
+
+_stock_catalog_cache_lock = threading.Lock()
+_stock_catalog_cache: Dict[str, object] = {
+    "items": [],
+    "expires_at": datetime.min,
+    "cache_key": "",
+}
 
 
 def _parse_bool(value, default: bool = False) -> bool:
@@ -71,6 +80,10 @@ def _validate_symbols(symbols: List[str]) -> None:
         if len(invalid_symbols) > 5:
             preview += " 等"
         raise ValueError(f"股票代码格式不正确: {preview}。请使用 6 位代码或 000001.SZ 这类完整 ts_code")
+
+
+def _normalize_text(value) -> str:
+    return str(value or "").strip()
 
 
 def _normalize_trade_date(value) -> str:
@@ -153,6 +166,52 @@ class MarketDataService:
             "last_sync_at": self.settings.get_raw_value("market_data_runtime", "last_sync_at") or "",
             "last_sync_status": self.settings.get_raw_value("market_data_runtime", "last_sync_status") or "",
             "last_sync_message": self.settings.get_raw_value("market_data_runtime", "last_sync_message") or "",
+        }
+
+    def search_stock_candidates(
+        self,
+        query: str = "",
+        market: str = "",
+        area: str = "",
+        industry: str = "",
+        limit: int = 20,
+        refresh: bool = False,
+    ) -> Dict:
+        normalized_query = _normalize_text(query)
+        normalized_market = _normalize_text(market)
+        normalized_area = _normalize_text(area)
+        normalized_industry = _normalize_text(industry)
+        limited = max(1, min(limit, 10000))
+        catalog = self._get_stock_catalog(refresh=refresh)
+
+        filtered = catalog
+        if normalized_market:
+            filtered = [item for item in filtered if item["market"] == normalized_market]
+        if normalized_area:
+            filtered = [item for item in filtered if item["area"] == normalized_area]
+        if normalized_industry:
+            filtered = [item for item in filtered if item["industry"] == normalized_industry]
+
+        if normalized_query:
+            query_upper = normalized_query.upper()
+            filtered = [
+                item
+                for item in filtered
+                if query_upper in item["ts_code"]
+                or query_upper in item["symbol"]
+                or normalized_query in item["name"]
+            ]
+
+        return {
+            "query": normalized_query,
+            "market": normalized_market,
+            "area": normalized_area,
+            "industry": normalized_industry,
+            "total": len(filtered),
+            "items": filtered[:limited],
+            "markets": sorted({item["market"] for item in catalog if item["market"]}),
+            "areas": sorted({item["area"] for item in catalog if item["area"]}),
+            "industries": sorted({item["industry"] for item in catalog if item["industry"]}),
         }
 
     def sync_if_due(self) -> Dict:
@@ -424,6 +483,58 @@ class MarketDataService:
         if mode == "backfill" and (start_dt > today or end_dt > today):
             raise ValueError(f"历史补数时间范围不能晚于今天（{today.strftime('%Y-%m-%d')}）")
         return start_dt, end_dt
+
+    def _get_stock_catalog(self, refresh: bool = False) -> List[Dict]:
+        token = self.settings.get_raw_value("tushare", "token")
+        if not token:
+            raise ValueError("请先配置 Tushare Token")
+        api_url = self.settings.get_raw_value("tushare", "api_url") or ""
+        cache_key = f"{token}|{api_url}"
+        now = datetime.now()
+
+        with _stock_catalog_cache_lock:
+            cache_valid = (
+                not refresh
+                and _stock_catalog_cache["items"]
+                and _stock_catalog_cache["cache_key"] == cache_key
+                and now < _stock_catalog_cache["expires_at"]
+            )
+            if cache_valid:
+                return list(_stock_catalog_cache["items"])
+
+        api = TushareAPI(token, api_url=api_url)
+        frame = api.get_stock_basic()
+        items = self._normalize_stock_catalog(frame)
+
+        with _stock_catalog_cache_lock:
+            _stock_catalog_cache["items"] = items
+            _stock_catalog_cache["cache_key"] = cache_key
+            _stock_catalog_cache["expires_at"] = now + STOCK_CATALOG_CACHE_TTL
+
+        return list(items)
+
+    def _normalize_stock_catalog(self, frame: Optional[pd.DataFrame]) -> List[Dict]:
+        if frame is None or frame.empty:
+            return []
+
+        items: List[Dict] = []
+        for record in frame.to_dict("records"):
+            ts_code = _normalize_text(record.get("ts_code")).upper()
+            symbol = _normalize_text(record.get("symbol")).upper()
+            if not ts_code:
+                continue
+            items.append(
+                {
+                    "ts_code": ts_code,
+                    "symbol": symbol,
+                    "name": _normalize_text(record.get("name")),
+                    "area": _normalize_text(record.get("area")),
+                    "industry": _normalize_text(record.get("industry")),
+                    "market": _normalize_text(record.get("market")),
+                }
+            )
+
+        return sorted(items, key=lambda item: (item["market"], item["symbol"], item["ts_code"]))
 
     def _build_sync_tasks(
         self,

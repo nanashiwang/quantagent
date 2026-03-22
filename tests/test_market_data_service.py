@@ -65,6 +65,36 @@ class _FakeTushareAPI:
     def get_top_list(self, trade_date):
         return pd.DataFrame([])
 
+    def get_stock_basic(self, exchange=None):
+        return pd.DataFrame(
+            [
+                {
+                    "ts_code": "688981.SH",
+                    "symbol": "688981",
+                    "name": "中芯国际",
+                    "area": "上海",
+                    "industry": "半导体",
+                    "market": "科创板",
+                },
+                {
+                    "ts_code": "300750.SZ",
+                    "symbol": "300750",
+                    "name": "宁德时代",
+                    "area": "深圳",
+                    "industry": "电池",
+                    "market": "创业板",
+                },
+                {
+                    "ts_code": "600519.SH",
+                    "symbol": "600519",
+                    "name": "贵州茅台",
+                    "area": "贵州",
+                    "industry": "白酒",
+                    "market": "主板",
+                },
+            ]
+        )
+
 
 class _PartiallyFailingTushareAPI(_FakeTushareAPI):
     def get_moneyflow(self, ts_code, start_date, end_date):
@@ -189,6 +219,22 @@ class TestMarketDataService(unittest.TestCase):
         self.assertEqual(result["status"], "partial")
         self.assertEqual(len(result["errors"]), 1)
         self.assertIn("600519.SH", result["errors"][0])
+
+    def test_search_stock_candidates_supports_query_and_multi_filters(self):
+        with patch("backend.services.market_data_service.TushareAPI", _FakeTushareAPI):
+            result = self.service.search_stock_candidates(
+                query="中芯",
+                market="科创板",
+                area="上海",
+                industry="半导体",
+                limit=10,
+            )
+
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["items"][0]["ts_code"], "688981.SH")
+        self.assertIn("科创板", result["markets"])
+        self.assertIn("上海", result["areas"])
+        self.assertIn("半导体", result["industries"])
 
     def test_sync_configured_data_rejects_invalid_symbols(self):
         self.settings.update_settings(
