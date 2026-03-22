@@ -14,6 +14,7 @@ from backend.routers import (
     auth,
     backtest,
     knowledge,
+    market_data,
     news,
     recommend,
     review,
@@ -30,6 +31,7 @@ from src.utils.config import get_config
 _sqlite_client = None
 _mongo_client = None
 _news_scheduler = None
+_market_data_scheduler = None
 
 
 def get_sqlite_client() -> SQLiteClient:
@@ -64,6 +66,7 @@ app.include_router(settings.router)
 app.include_router(agents.router)
 app.include_router(sources.router)
 app.include_router(news.router)
+app.include_router(market_data.router)
 app.include_router(recommend.router)
 app.include_router(review.router)
 app.include_router(knowledge.router)
@@ -75,11 +78,16 @@ app.include_router(workflow.router)
 @app.on_event("startup")
 async def startup():
     global _news_scheduler
+    global _market_data_scheduler
 
     validate_jwt_config()
     db = get_sqlite_client()
 
     from backend.services.news_scheduler import NewsScheduler, should_disable_scheduler
+    from backend.services.market_data_scheduler import (
+        MarketDataScheduler,
+        should_disable_market_data_scheduler,
+    )
     from backend.services.settings_service import AgentConfigService, SettingsService
     from backend.services.source_service import SourceService
     from backend.services.user_service import UserService
@@ -92,14 +100,21 @@ async def startup():
     if not should_disable_scheduler():
         _news_scheduler = NewsScheduler(db)
         _news_scheduler.start()
+    if not should_disable_market_data_scheduler():
+        _market_data_scheduler = MarketDataScheduler(db)
+        _market_data_scheduler.start()
 
 
 @app.on_event("shutdown")
 async def shutdown():
     global _news_scheduler
+    global _market_data_scheduler
     if _news_scheduler is not None:
         _news_scheduler.shutdown()
         _news_scheduler = None
+    if _market_data_scheduler is not None:
+        _market_data_scheduler.shutdown()
+        _market_data_scheduler = None
 
 
 @app.get("/api/health")

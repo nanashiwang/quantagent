@@ -75,6 +75,11 @@ class SettingsService:
                 ("llm", "max_tokens", str(config.llm.max_tokens), False),
                 ("tushare", "token", config.tushare.token, True),
                 ("tushare", "api_url", config.tushare.api_url, False),
+                ("market_data", "symbols", config.market_data.symbols, False),
+                ("market_data", "data_types", config.market_data.data_types, False),
+                ("market_data", "fetch_interval", str(config.market_data.fetch_interval), False),
+                ("market_data", "history_days", str(config.market_data.history_days), False),
+                ("market_data", "auto_sync", str(config.market_data.auto_sync).lower(), False),
             ]
             with self.db.get_connection() as conn:
                 for cat, key, val, secret in defaults:

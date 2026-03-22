@@ -35,6 +35,13 @@ class TestConfig(unittest.TestCase):
                       token: "${TEST_TUSHARE_TOKEN}"
                       api_url: "${TEST_TUSHARE_API_URL:-}"
 
+                    market_data:
+                      symbols: "${TEST_MARKET_DATA_SYMBOLS:-000001.SZ,600519.SH}"
+                      data_types: "${TEST_MARKET_DATA_TYPES:-daily,daily_basic,moneyflow}"
+                      fetch_interval: "${TEST_MARKET_DATA_FETCH_INTERVAL:-3600}"
+                      history_days: "${TEST_MARKET_DATA_HISTORY_DAYS:-30}"
+                      auto_sync: "${TEST_MARKET_DATA_AUTO_SYNC:-false}"
+
                     database:
                       mongodb:
                         uri: "${TEST_MONGODB_URI:-mongodb://mongo:27017}"
@@ -61,6 +68,11 @@ class TestConfig(unittest.TestCase):
             self.assertEqual(config.llm.api_key, "llm-key")
             self.assertEqual(config.tushare.token, "ts-token")
             self.assertEqual(config.tushare.api_url, "")
+            self.assertEqual(config.market_data.symbols, "000001.SZ,600519.SH")
+            self.assertEqual(config.market_data.data_types, "daily,daily_basic,moneyflow")
+            self.assertEqual(config.market_data.fetch_interval, 3600)
+            self.assertEqual(config.market_data.history_days, 30)
+            self.assertFalse(config.market_data.auto_sync)
             self.assertEqual(config.database.mongodb.uri, "mongodb://mongo:27017")
             self.assertEqual(config.database.sqlite.path, "data/sqlite/trading.db")
             self.assertEqual(config.logging.file, "logs/app.log")
@@ -86,6 +98,13 @@ class TestConfig(unittest.TestCase):
                     tushare:
                       token: "token"
                       api_url: ""
+
+                    market_data:
+                      symbols: "000001.SZ"
+                      data_types: "daily"
+                      fetch_interval: 3600
+                      history_days: 10
+                      auto_sync: false
 
                     database:
                       mongodb:

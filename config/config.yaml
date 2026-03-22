@@ -10,6 +10,13 @@ tushare:
   token: "${TUSHARE_TOKEN}"
   api_url: "${TUSHARE_API_URL:-}"
 
+market_data:
+  symbols: "${MARKET_DATA_SYMBOLS:-000001.SZ,600519.SH,159915.SZ}"
+  data_types: "${MARKET_DATA_TYPES:-daily,daily_basic,moneyflow}"
+  fetch_interval: "${MARKET_DATA_FETCH_INTERVAL:-3600}"
+  history_days: "${MARKET_DATA_HISTORY_DAYS:-30}"
+  auto_sync: "${MARKET_DATA_AUTO_SYNC:-false}"
+
 database:
   mongodb:
     uri: "${MONGODB_URI:-mongodb://localhost:27017}"

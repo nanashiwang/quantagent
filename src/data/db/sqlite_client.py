@@ -144,6 +144,19 @@ class SQLiteClient:
                 )
             """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS market_data_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts_code VARCHAR(20) NOT NULL,
+                    trade_date DATE NOT NULL,
+                    dataset VARCHAR(30) NOT NULL,
+                    metrics_json TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(ts_code, trade_date, dataset)
+                )
+            """)
+
             self._ensure_column(conn, "news_sources", "category", "VARCHAR(50) DEFAULT ''")
             self._ensure_column(conn, "news_sources", "market", "VARCHAR(50) DEFAULT ''")
             self._ensure_column(conn, "news_sources", "dedup_strategy", "VARCHAR(50) DEFAULT 'content_hash'")
@@ -170,6 +183,14 @@ class SQLiteClient:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_event_briefs_date_source
                 ON event_briefs(date DESC, source)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_stock_data_symbol_trade_date
+                ON stock_data(ts_code, trade_date DESC)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_market_data_snapshots_symbol_dataset_date
+                ON market_data_snapshots(ts_code, dataset, trade_date DESC)
             """)
 
             conn.commit()

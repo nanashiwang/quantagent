@@ -22,6 +22,14 @@ class TushareConfig(BaseSettings):
     api_url: str = ""
 
 
+class MarketDataConfig(BaseSettings):
+    symbols: str = ""
+    data_types: str = "daily,daily_basic,moneyflow"
+    fetch_interval: int = 3600
+    history_days: int = 30
+    auto_sync: bool = False
+
+
 class MongoDBConfig(BaseSettings):
     uri: str = "mongodb://localhost:27017"
     db_name: str = "quant_trading"
@@ -44,6 +52,7 @@ class LoggingConfig(BaseSettings):
 class Config(BaseSettings):
     llm: LLMConfig
     tushare: TushareConfig
+    market_data: MarketDataConfig
     database: DatabaseConfig
     logging: LoggingConfig
 

@@ -12,6 +12,8 @@ export const fetchSource = (id) => request.post(`/sources/${id}/fetch`)
 export const getNewsArticles = (params) => request.get('/news/articles', { params })
 export const getNewsBriefs = (params) => request.get('/news/briefs', { params })
 export const syncNews = (params) => request.post('/news/sync', null, { params })
+export const getMarketDataOverview = (params) => request.get('/market-data/overview', { params })
+export const syncMarketData = () => request.post('/market-data/sync', null, { timeout: 120000 })
 
 export const getRecommendations = (params) => request.get('/recommend', { params })
 export const getRecommendDates = () => request.get('/recommend/dates')

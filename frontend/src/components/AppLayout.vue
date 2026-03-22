@@ -130,6 +130,7 @@ const navGroups = [
     icon: DataAnalysis,
     items: [
       { path: '/review', label: '复盘分析', desc: '沉淀正确与错误决策样本' },
+      { path: '/market/data', label: '行情数据中心', desc: '查看股票池同步结果、趋势图和指标表格' },
       { path: '/news/articles', label: '资讯列表', desc: '查看自动采集入库的新闻、公告与宏观资讯' },
       { path: '/news/briefs', label: '每日简报', desc: '集中查看系统生成的日度资讯摘要' },
       { path: '/knowledge', label: '知识库', desc: '维护热知识与冷知识资产' },
@@ -153,6 +154,7 @@ const routeMeta = {
   '/trades': { title: '交易记录', description: '跟踪真实交易数据，并把执行动作沉淀为可追溯的记录。' },
   '/backtest': { title: '回测系统', description: '快速验证参数区间，帮助策略在上线前更早暴露风险。' },
   '/review': { title: '复盘分析', description: '把正确与错误案例聚合起来，形成更高质量的经验闭环。' },
+  '/market/data': { title: '行情数据中心', description: '集中查看自定义股票池的行情、基础指标和资金流向，兼顾趋势图与明细表。' },
   '/news/articles': { title: '资讯列表', description: '汇总自动采集入库的公告、监管、宏观和快讯内容，方便统一检索。' },
   '/news/briefs': { title: '每日简报', description: '按日查看系统生成的资讯摘要，快速把握今日重要事件。' },
   '/knowledge': { title: '知识库', description: '管理模型沉淀出的高价值知识，让判断依据持续积累。' },
