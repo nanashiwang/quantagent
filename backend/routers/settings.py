@@ -38,6 +38,15 @@ def _resolve_secret_value(service: SettingsService, category: str, key: str, sub
     return (stored_value or "").strip()
 
 
+def _resolve_plain_value(service: SettingsService, category: str, key: str, submitted_value: str) -> str:
+    value = (submitted_value or "").strip()
+    if value:
+        return value
+
+    stored_value = service.get_raw_value(category, key)
+    return (stored_value or "").strip()
+
+
 def _test_responses_stream(api_base: str, api_key: str, model: str) -> dict:
     url = f"{_normalize_api_base(api_base)}/responses"
     payload = {
@@ -138,13 +147,15 @@ async def test_tushare(data: TestTushareRequest, _=Depends(require_admin)):
     try:
         svc = _get_service()
         token = _resolve_secret_value(svc, "tushare", "token", data.token)
+        api_url = _resolve_plain_value(svc, "tushare", "api_url", data.api_url)
         if not token:
             return {"success": False, "message": "连接失败: 请先填写并保存有效的 Tushare Token"}
 
         from src.data.sources.tushare_api import TushareAPI
 
-        api = TushareAPI(token)
-        df = api.get_stock_basic()
-        return {"success": True, "message": f"连接成功，共 {len(df)} 只股票"}
+        api = TushareAPI(token, api_url=api_url)
+        df = api.get_index_basic(limit=5)
+        extra = f"，已使用自定义 API URL: {api_url}" if api_url else ""
+        return {"success": True, "message": f"连接成功，已获取 {len(df)} 条指数基础数据{extra}"}
     except Exception as e:
         return {"success": False, "message": f"连接失败: {str(e)}"}

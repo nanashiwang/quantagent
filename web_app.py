@@ -25,7 +25,7 @@ def init_system():
         api_base=config.llm.api_base,
         model=config.llm.model
     )
-    tushare_api = TushareAPI(config.tushare.token)
+    tushare_api = TushareAPI(config.tushare.token, api_url=config.tushare.api_url)
     return sqlite_client, mongo_client, llm, tushare_api
 
 def main():

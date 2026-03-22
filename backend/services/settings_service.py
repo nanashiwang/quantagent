@@ -74,6 +74,7 @@ class SettingsService:
                 ("llm", "temperature", str(config.llm.temperature), False),
                 ("llm", "max_tokens", str(config.llm.max_tokens), False),
                 ("tushare", "token", config.tushare.token, True),
+                ("tushare", "api_url", config.tushare.api_url, False),
             ]
             with self.db.get_connection() as conn:
                 for cat, key, val, secret in defaults:

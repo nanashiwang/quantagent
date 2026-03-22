@@ -26,6 +26,7 @@ class TestLLMRequest(BaseModel):
 
 class TestTushareRequest(BaseModel):
     token: str
+    api_url: str = ""
 
 
 class AgentConfigOut(BaseModel):

@@ -19,6 +19,7 @@ class LLMConfig(BaseSettings):
 
 class TushareConfig(BaseSettings):
     token: str
+    api_url: str = ""
 
 
 class MongoDBConfig(BaseSettings):

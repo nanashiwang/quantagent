@@ -301,7 +301,8 @@ class NewsService:
         if not token:
             raise ValueError("请先配置 Tushare Token")
 
-        api = TushareAPI(token)
+        api_url = self.settings.get_raw_value("tushare", "api_url") or ""
+        api = TushareAPI(token, api_url=api_url)
         datasets = config.get("datasets", []) or [{"name": "news", "params": {"src": "sina"}}]
         articles = []
         for dataset in datasets:

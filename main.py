@@ -57,7 +57,7 @@ def init_system():
     )
 
     # 初始化Tushare
-    tushare_api = TushareAPI(config.tushare.token)
+    tushare_api = TushareAPI(config.tushare.token, api_url=config.tushare.api_url)
 
     logger.info("系统初始化完成")
     return config, sqlite_client, mongo_client, llm, tushare_api

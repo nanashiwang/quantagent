@@ -8,6 +8,7 @@ llm:
 
 tushare:
   token: "${TUSHARE_TOKEN}"
+  api_url: "${TUSHARE_API_URL:-}"
 
 database:
   mongodb:

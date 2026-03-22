@@ -18,11 +18,13 @@ async def run_backtest(
     from src.backtest.engine import BacktestEngine
 
     db = get_sqlite_client()
-    token = SettingsService(db).get_raw_value("tushare", "token")
+    settings = SettingsService(db)
+    token = settings.get_raw_value("tushare", "token")
+    api_url = settings.get_raw_value("tushare", "api_url") or ""
     if not token:
         return {"error": "请先配置Tushare Token"}
 
-    tushare_api = TushareAPI(token)
+    tushare_api = TushareAPI(token, api_url=api_url)
     engine = BacktestEngine(db, tushare_api)
     result = engine.run_backtest(start_date, end_date, hold_days)
     return result

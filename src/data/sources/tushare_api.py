@@ -5,16 +5,32 @@ import pandas as pd
 import tushare as ts
 
 
+def _normalize_http_url(api_url: str) -> str:
+    normalized = (api_url or "").strip()
+    if not normalized:
+        return ""
+    return normalized if normalized.endswith("/") else f"{normalized}/"
+
+
 class TushareAPI:
-    def __init__(self, token: str):
-        ts.set_token(token)
-        self.pro = ts.pro_api()
+    def __init__(self, token: str, api_url: str = ""):
+        self.token = token
+        self.api_url = _normalize_http_url(api_url)
+        self.pro = ts.pro_api(token)
+        if self.api_url:
+            self.pro._DataApi__http_url = self.api_url
 
     def get_stock_basic(self, exchange: Optional[str] = None) -> pd.DataFrame:
         return self.pro.stock_basic(
             exchange=exchange,
             list_status="L",
             fields="ts_code,symbol,name,area,industry,market",
+        )
+
+    def get_index_basic(self, limit: int = 5) -> pd.DataFrame:
+        return self.pro.index_basic(
+            limit=limit,
+            fields="ts_code,name,market,publisher,category,base_date",
         )
 
     def get_daily_data(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:

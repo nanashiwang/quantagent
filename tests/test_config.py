@@ -33,6 +33,7 @@ class TestConfig(unittest.TestCase):
 
                     tushare:
                       token: "${TEST_TUSHARE_TOKEN}"
+                      api_url: "${TEST_TUSHARE_API_URL:-}"
 
                     database:
                       mongodb:
@@ -59,6 +60,7 @@ class TestConfig(unittest.TestCase):
 
             self.assertEqual(config.llm.api_key, "llm-key")
             self.assertEqual(config.tushare.token, "ts-token")
+            self.assertEqual(config.tushare.api_url, "")
             self.assertEqual(config.database.mongodb.uri, "mongodb://mongo:27017")
             self.assertEqual(config.database.sqlite.path, "data/sqlite/trading.db")
             self.assertEqual(config.logging.file, "logs/app.log")
@@ -83,6 +85,7 @@ class TestConfig(unittest.TestCase):
 
                     tushare:
                       token: "token"
+                      api_url: ""
 
                     database:
                       mongodb:

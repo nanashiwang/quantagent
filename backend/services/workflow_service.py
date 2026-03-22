@@ -4,6 +4,17 @@ from typing import Dict, Optional
 from datetime import datetime
 
 
+def _build_tushare_api(settings_service):
+    from src.data.sources.tushare_api import TushareAPI
+
+    token = settings_service.get_raw_value("tushare", "token")
+    if not token:
+        raise ValueError("请先配置 Tushare Token")
+
+    api_url = settings_service.get_raw_value("tushare", "api_url") or ""
+    return TushareAPI(token, api_url=api_url)
+
+
 class WorkflowRunner:
     """工作流后台执行器"""
 
@@ -33,7 +44,6 @@ class WorkflowRunner:
                 from backend.services.settings_service import SettingsService
                 from backend.app import get_sqlite_client
                 from src.llm.factory import LLMFactory
-                from src.data.sources.tushare_api import TushareAPI
                 from src.agents.observe.event_collector import EventCollector
                 from src.agents.observe.tech_analyst import TechAnalyst
                 from src.workflows.observe_flow import create_observe_workflow
@@ -44,10 +54,8 @@ class WorkflowRunner:
                 api_key = svc.get_raw_value("llm", "api_key")
                 api_base = svc.get_raw_value("llm", "api_base")
                 model = svc.get_raw_value("llm", "model") or "gpt-4"
-                token = svc.get_raw_value("tushare", "token")
-
                 llm = LLMFactory.create(provider, api_key=api_key, api_base=api_base, model=model)
-                ts_api = TushareAPI(token)
+                ts_api = _build_tushare_api(svc)
 
                 cls._set_status(workflow_id, "running", "获取新闻数据...")
                 news_df = ts_api.get_news(date.replace("-", ""), date.replace("-", ""))
@@ -80,7 +88,6 @@ class WorkflowRunner:
                 from backend.services.settings_service import SettingsService
                 from backend.app import get_sqlite_client
                 from src.llm.factory import LLMFactory
-                from src.data.sources.tushare_api import TushareAPI
                 from src.agents.reason.news_screener import NewsScreener
                 from src.workflows.reason_flow import create_reason_workflow
 
@@ -90,10 +97,8 @@ class WorkflowRunner:
                 api_key = svc.get_raw_value("llm", "api_key")
                 api_base = svc.get_raw_value("llm", "api_base")
                 model = svc.get_raw_value("llm", "model") or "gpt-4"
-                token = svc.get_raw_value("tushare", "token")
-
                 llm = LLMFactory.create(provider, api_key=api_key, api_base=api_base, model=model)
-                ts_api = TushareAPI(token)
+                ts_api = _build_tushare_api(svc)
 
                 with db.get_connection() as conn:
                     row = conn.execute(
@@ -141,7 +146,6 @@ class WorkflowRunner:
                 from backend.services.settings_service import SettingsService
                 from backend.app import get_sqlite_client, get_mongo_client
                 from src.llm.factory import LLMFactory
-                from src.data.sources.tushare_api import TushareAPI
                 from src.agents.review.retrospect_agent import RetrospectAgent
                 from src.workflows.review_flow import create_review_workflow
 
@@ -152,10 +156,8 @@ class WorkflowRunner:
                 api_key = svc.get_raw_value("llm", "api_key")
                 api_base = svc.get_raw_value("llm", "api_base")
                 model = svc.get_raw_value("llm", "model") or "gpt-4"
-                token = svc.get_raw_value("tushare", "token")
-
                 llm = LLMFactory.create(provider, api_key=api_key, api_base=api_base, model=model)
-                ts_api = TushareAPI(token)
+                ts_api = _build_tushare_api(svc)
 
                 agent = RetrospectAgent(llm, db, mongo, ts_api)
                 workflow = create_review_workflow(agent)
