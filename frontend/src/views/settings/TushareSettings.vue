@@ -3,7 +3,7 @@
     <section class="page-hero page-hero--compact">
       <span class="page-eyebrow">Data Source Access</span>
       <h2>Tushare 配置</h2>
-      <p>同时维护 Tushare 接入参数与行情数据拉取策略，让连接、调度和展示走同一套配置。</p>
+      <p>统一维护 Tushare 接入参数、行情拉取策略与手动同步状态，让连接、调度、补数和进度展示放在同一处完成。</p>
     </section>
 
     <el-card class="panel-card" shadow="never">
@@ -11,7 +11,7 @@
         <div class="panel-toolbar">
           <div class="panel-toolbar__copy">
             <div class="panel-title">连接参数</div>
-            <div class="panel-subtitle">用于校验 Tushare 授权和自定义网关，影响所有行情调用入口。</div>
+            <div class="panel-subtitle">用于校验 Tushare 授权与自定义网关，影响所有行情数据调用入口。</div>
           </div>
           <span class="section-tag">Tushare Pro</span>
         </div>
@@ -33,16 +33,16 @@
             placeholder="http://121.40.135.59:8010/"
           />
           <div class="settings-tip">
-            如果你的接入方式需要设置 <code>pro._DataApi__http_url</code>，请在这里填写对应地址。
+            如果你的接入方式依赖 <code>pro._DataApi__http_url</code>，请在这里填入对应的代理地址。
           </div>
         </el-form-item>
 
         <el-form-item>
           <div class="settings-actions">
-            <el-button type="primary" @click="saveConnectionSettings" :loading="connectionSaving">
+            <el-button type="primary" :loading="connectionSaving" @click="saveConnectionSettings">
               保存连接配置
             </el-button>
-            <el-button @click="testConnection" :loading="testing">
+            <el-button :loading="testing" @click="testConnection">
               测试连接
             </el-button>
           </div>
@@ -62,7 +62,7 @@
         <div class="panel-toolbar">
           <div class="panel-toolbar__copy">
             <div class="panel-title">行情拉取策略</div>
-            <div class="panel-subtitle">决定拉哪些股票、拉什么信息、多久自动同步一次，以及按固定区间或历史天数拉取数据。</div>
+            <div class="panel-subtitle">把日常增量和历史补数分开管理，同时支持快捷范围、立即拉取和实时进度查看。</div>
           </div>
           <span class="section-tag">Sync Policy</span>
         </div>
@@ -85,20 +85,53 @@
               {{ item.label }}
             </el-checkbox>
           </el-checkbox-group>
-          <div class="settings-tip">日线行情适合画图，基础指标和资金流向适合表格分析，龙虎榜适合事件补充。</div>
+          <div class="settings-tip">日线行情适合画图，基础指标和资金流向适合表格分析，龙虎榜适合作为事件补充。</div>
         </el-form-item>
 
-        <el-form-item label="拉取时间范围">
-          <el-date-picker
-            v-model="syncDateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            clearable
-          />
-          <div class="settings-tip">如果这里选了开始和结束日期，系统会优先按这个区间拉取；留空时才按下面的历史天数滚动更新。</div>
+        <el-form-item label="同步模式">
+          <div class="mode-panel">
+            <button
+              type="button"
+              class="mode-card"
+              :class="{ 'is-active': syncMode === 'incremental' }"
+              @click="syncMode = 'incremental'"
+            >
+              <span class="mode-card__eyebrow">日常增量</span>
+              <strong>按增量窗口滚动更新</strong>
+              <p>主要用于每天自动或手动补最近数据，依赖下方的“增量天数”和“同步频率”。</p>
+            </button>
+            <button
+              type="button"
+              class="mode-card"
+              :class="{ 'is-active': syncMode === 'backfill' }"
+              @click="syncMode = 'backfill'"
+            >
+              <span class="mode-card__eyebrow">历史补数</span>
+              <strong>按时间范围回补历史数据</strong>
+              <p>适合首轮建仓、补缺失记录或按阶段回溯，依赖下方日期范围。</p>
+            </button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="历史补数范围">
+          <div class="range-panel">
+            <el-date-picker
+              v-model="syncDateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              value-format="YYYY-MM-DD"
+              clearable
+            />
+            <div class="preset-actions">
+              <el-button plain @click="applyPresetRange(7)">近7天</el-button>
+              <el-button plain @click="applyPresetRange(30)">近30天</el-button>
+              <el-button plain @click="applyPresetRange(90)">近90天</el-button>
+              <el-button text @click="clearDateRange">清空范围</el-button>
+            </div>
+          </div>
+          <div class="settings-tip">历史补数只读取这里的日期区间；日常增量会忽略这个范围，改为按“增量天数”滚动同步。</div>
         </el-form-item>
 
         <div class="settings-grid">
@@ -106,7 +139,7 @@
             <el-input-number v-model="marketForm.fetch_interval" :min="60" :step="300" />
           </el-form-item>
 
-          <el-form-item label="历史天数">
+          <el-form-item label="增量天数">
             <el-input-number v-model="marketForm.history_days" :min="1" :step="5" />
           </el-form-item>
 
@@ -116,12 +149,33 @@
         </div>
 
         <el-form-item>
-          <div class="settings-actions">
-            <el-button type="primary" @click="saveMarketSettings" :loading="marketSaving">
+          <div class="settings-actions settings-actions--wide">
+            <el-button type="primary" :loading="marketSaving" @click="saveMarketSettings()">
               保存拉取策略
             </el-button>
-            <el-button type="success" @click="runSyncNow" :loading="syncing">
-              立即同步一次
+            <el-button
+              type="success"
+              :loading="syncStarting && pendingSyncMode === syncMode"
+              :disabled="isSyncRunning"
+              @click="triggerSync(syncMode)"
+            >
+              {{ syncActionLabel }}
+            </el-button>
+            <el-button
+              plain
+              :loading="syncStarting && pendingSyncMode === 'incremental'"
+              :disabled="isSyncRunning"
+              @click="triggerSync('incremental')"
+            >
+              执行增量同步
+            </el-button>
+            <el-button
+              plain
+              :loading="syncStarting && pendingSyncMode === 'backfill'"
+              :disabled="isSyncRunning"
+              @click="triggerSync('backfill')"
+            >
+              执行历史补数
             </el-button>
           </div>
         </el-form-item>
@@ -141,15 +195,62 @@
           <strong>{{ runtimeStatus.last_sync_message || '保存策略后可手动同步，也可以开启自动同步。' }}</strong>
         </div>
       </div>
+
+      <div class="sync-monitor glass-surface">
+        <div class="sync-monitor__header">
+          <div>
+            <span class="sync-monitor__eyebrow">Execution Monitor</span>
+            <h3>同步进度与失败明细</h3>
+          </div>
+          <div class="sync-monitor__tags">
+            <el-tag :type="syncModeTagType">{{ syncModeLabel(syncStatus.mode) }}</el-tag>
+            <el-tag :type="syncStatusTagType">{{ syncStatusLabel }}</el-tag>
+          </div>
+        </div>
+
+        <el-progress
+          :percentage="syncStatus.progress"
+          :status="progressStatus"
+          :indeterminate="isSyncRunning && syncStatus.total === 0"
+          :stroke-width="12"
+        />
+
+        <div class="sync-monitor__meta">
+          <span>任务进度：{{ syncStatus.current }}/{{ syncStatus.total || '--' }}</span>
+          <span>当前任务：{{ syncStatus.current_task || '等待开始' }}</span>
+          <span>最后更新：{{ syncStatus.updated_at || '暂无' }}</span>
+        </div>
+
+        <div class="settings-tip sync-monitor__message">
+          {{ syncStatus.message || '点击“立即拉取”后，这里会展示同步进度、当前任务和失败明细。' }}
+        </div>
+
+        <el-alert
+          v-if="syncStatus.result?.message && syncStatus.status !== 'running'"
+          :title="syncStatus.result.message"
+          :type="syncResultAlertType"
+          show-icon
+          :closable="false"
+        />
+
+        <div v-if="syncStatus.errors.length" class="sync-errors">
+          <div class="sync-errors__title">失败明细</div>
+          <div class="sync-errors__list">
+            <div v-for="(item, index) in syncStatus.errors" :key="`${item}-${index}`" class="sync-errors__item">
+              {{ item }}
+            </div>
+          </div>
+        </div>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { syncMarketData } from '../../api/index'
+import { getMarketDataSyncStatus, syncMarketData } from '../../api/index'
 import { getSettings, testTushare, updateSettings } from '../../api/settings'
 
 const datasetOptions = [
@@ -167,18 +268,105 @@ const marketForm = ref({
   history_days: 30,
   auto_sync: false,
 })
+const syncMode = ref('incremental')
 const syncDateRange = ref([])
 const runtimeStatus = ref({
   last_sync_at: '',
   last_sync_status: '',
   last_sync_message: '',
 })
+const syncStatus = ref(createEmptySyncStatus())
+const activeSyncId = ref('')
 const connectionSaving = ref(false)
 const marketSaving = ref(false)
 const testing = ref(false)
-const syncing = ref(false)
+const syncStarting = ref(false)
+const pendingSyncMode = ref('')
 const testResult = ref(null)
 const tokenPlaceholder = ref('Tushare Pro Token')
+
+let syncPollingTimer = null
+
+const isSyncRunning = computed(() => syncStatus.value.status === 'running')
+const syncActionLabel = computed(() => `立即拉取（${syncModeLabel(syncMode.value)}）`)
+const syncStatusLabel = computed(() => {
+  const labelMap = {
+    idle: '待执行',
+    started: '已创建',
+    running: '执行中',
+    completed: syncStatus.value.result?.status === 'partial' ? '部分完成' : '已完成',
+    failed: '执行失败',
+    unknown: '暂无任务',
+  }
+  return labelMap[syncStatus.value.status] || '暂无任务'
+})
+const syncStatusTagType = computed(() => {
+  if (syncStatus.value.status === 'failed') {
+    return 'danger'
+  }
+  if (syncStatus.value.result?.status === 'partial') {
+    return 'warning'
+  }
+  if (syncStatus.value.status === 'completed') {
+    return 'success'
+  }
+  if (syncStatus.value.status === 'running') {
+    return 'warning'
+  }
+  return 'info'
+})
+const syncModeTagType = computed(() => (syncStatus.value.mode === 'backfill' ? 'warning' : 'success'))
+const progressStatus = computed(() => {
+  if (syncStatus.value.status === 'failed') {
+    return 'exception'
+  }
+  if (syncStatus.value.result?.status === 'partial') {
+    return 'warning'
+  }
+  if (syncStatus.value.status === 'completed') {
+    return 'success'
+  }
+  return undefined
+})
+const syncResultAlertType = computed(() => {
+  if (syncStatus.value.status === 'failed' || syncStatus.value.result?.status === 'failed') {
+    return 'error'
+  }
+  if (syncStatus.value.result?.status === 'partial') {
+    return 'warning'
+  }
+  return 'success'
+})
+
+function createEmptySyncStatus() {
+  return {
+    sync_id: '',
+    status: 'idle',
+    mode: 'incremental',
+    message: '',
+    progress: 0,
+    current: 0,
+    total: 0,
+    current_task: '',
+    errors: [],
+    started_at: '',
+    updated_at: '',
+    result: {},
+  }
+}
+
+function normalizeSyncStatus(payload = {}) {
+  return {
+    ...createEmptySyncStatus(),
+    ...payload,
+    errors: Array.isArray(payload.errors) ? payload.errors : [],
+    result: payload.result && typeof payload.result === 'object' ? payload.result : {},
+  }
+}
+
+function syncModeLabel(mode) {
+  return mode === 'backfill' ? '历史补数' : '日常增量'
+}
 
 function getErrorMessage(error, fallback) {
   return error?.response?.data?.detail || error?.response?.data?.message || error?.message || fallback
@@ -205,6 +393,13 @@ function parseList(value, fallback = []) {
     .filter(Boolean)
 }
 
+function formatDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function buildConnectionSettingsPayload() {
   return {
     settings: [
@@ -227,6 +422,25 @@ function buildMarketSettingsPayload() {
       { key: 'auto_sync', value: String(marketForm.value.auto_sync), is_secret: false },
     ],
   }
+}
+
+function stopSyncPolling() {
+  if (syncPollingTimer) {
+    window.clearTimeout(syncPollingTimer)
+    syncPollingTimer = null
+  }
+}
+
+function applyPresetRange(days) {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - (days - 1))
+  syncDateRange.value = [formatDate(start), formatDate(end)]
+  syncMode.value = 'backfill'
+}
+
+function clearDateRange() {
+  syncDateRange.value = []
 }
 
 async function loadConnectionSettings() {
@@ -257,6 +471,7 @@ async function loadMarketSettings() {
   marketForm.value.history_days = parseInteger(map.history_days, 30)
   marketForm.value.auto_sync = parseBoolean(map.auto_sync)
   syncDateRange.value = map.start_date && map.end_date ? [map.start_date, map.end_date] : []
+  syncMode.value = syncDateRange.value.length === 2 ? 'backfill' : 'incremental'
 }
 
 async function loadRuntimeSettings() {
@@ -266,6 +481,73 @@ async function loadRuntimeSettings() {
     last_sync_at: map.last_sync_at || '',
     last_sync_status: map.last_sync_status || '',
     last_sync_message: map.last_sync_message || '',
+  }
+}
+
+async function loadLatestSyncStatus() {
+  const result = await getMarketDataSyncStatus()
+  const normalized = normalizeSyncStatus(result)
+
+  if (normalized.status === 'unknown') {
+    syncStatus.value = createEmptySyncStatus()
+    activeSyncId.value = ''
+    return
+  }
+
+  syncStatus.value = normalized
+  activeSyncId.value = normalized.sync_id || ''
+
+  if (normalized.status === 'running' && normalized.sync_id) {
+    scheduleSyncPolling(normalized.sync_id, false)
+  }
+}
+
+function scheduleSyncPolling(syncId, notifyOnFinish = true) {
+  stopSyncPolling()
+  syncPollingTimer = window.setTimeout(() => pollSyncStatus(syncId, notifyOnFinish), 1500)
+}
+
+async function pollSyncStatus(syncId = activeSyncId.value, notifyOnFinish = true) {
+  if (!syncId) {
+    return
+  }
+
+  try {
+    const result = await getMarketDataSyncStatus(syncId)
+    const normalized = normalizeSyncStatus(result)
+    syncStatus.value = normalized
+    activeSyncId.value = normalized.sync_id || syncId
+
+    if (normalized.status === 'running') {
+      scheduleSyncPolling(syncId, notifyOnFinish)
+      return
+    }
+
+    stopSyncPolling()
+    pendingSyncMode.value = ''
+    syncStarting.value = false
+    await loadRuntimeSettings()
+
+    if (!notifyOnFinish) {
+      return
+    }
+
+    if (normalized.status === 'failed') {
+      ElMessage.error(normalized.result?.message || normalized.message || '同步失败')
+      return
+    }
+
+    if (normalized.result?.status === 'partial') {
+      ElMessage.warning(normalized.result?.message || '同步完成，但存在部分失败任务')
+      return
+    }
+
+    ElMessage.success(normalized.result?.message || '同步完成')
+  } catch (error) {
+    stopSyncPolling()
+    pendingSyncMode.value = ''
+    syncStarting.value = false
+    ElMessage.error(getErrorMessage(error, '同步状态查询失败'))
   }
 }
 
@@ -281,13 +563,16 @@ async function saveConnectionSettings() {
   }
 }
 
-async function saveMarketSettings() {
+async function saveMarketSettings(showMessage = true) {
   marketSaving.value = true
   try {
     await updateSettings('market_data', buildMarketSettingsPayload())
-    ElMessage.success('拉取策略已保存')
+    if (showMessage) {
+      ElMessage.success('拉取策略已保存')
+    }
   } catch (error) {
     ElMessage.error(getErrorMessage(error, '保存失败'))
+    throw error
   } finally {
     marketSaving.value = false
   }
@@ -308,17 +593,36 @@ async function testConnection() {
   }
 }
 
-async function runSyncNow() {
-  syncing.value = true
+async function triggerSync(mode = syncMode.value) {
+  if (isSyncRunning.value) {
+    ElMessage.warning('已有同步任务正在执行，请等待当前任务结束')
+    return
+  }
+
+  if (mode === 'backfill' && (!syncDateRange.value || syncDateRange.value.length !== 2)) {
+    ElMessage.warning('执行历史补数前，请先选择完整的时间范围')
+    return
+  }
+
+  pendingSyncMode.value = mode
+  syncStarting.value = true
+
   try {
-    await updateSettings('market_data', buildMarketSettingsPayload())
-    const result = await syncMarketData()
-    ElMessage.success(result.message || '同步完成')
-    await loadRuntimeSettings()
+    await saveMarketSettings(false)
+    const result = await syncMarketData({ mode })
+    syncMode.value = mode
+    activeSyncId.value = result.sync_id
+    syncStatus.value = normalizeSyncStatus({
+      sync_id: result.sync_id,
+      status: 'running',
+      mode: result.mode || mode,
+      message: result.message || '行情同步任务已启动',
+    })
+    scheduleSyncPolling(result.sync_id, true)
   } catch (error) {
+    pendingSyncMode.value = ''
+    syncStarting.value = false
     ElMessage.error(getErrorMessage(error, '同步失败'))
-  } finally {
-    syncing.value = false
   }
 }
 
@@ -328,20 +632,29 @@ onMounted(async () => {
       loadConnectionSettings(),
       loadMarketSettings(),
       loadRuntimeSettings(),
+      loadLatestSyncStatus(),
     ])
   } catch {}
+})
+
+onBeforeUnmount(() => {
+  stopSyncPolling()
 })
 </script>
 
 <style scoped>
 .settings-form {
-  max-width: 980px;
+  max-width: 1040px;
 }
 
 .settings-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.settings-actions--wide {
+  align-items: center;
 }
 
 .settings-grid {
@@ -354,7 +667,7 @@ onMounted(async () => {
   margin-top: 8px;
   color: var(--el-text-color-secondary);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .checkbox-grid {
@@ -363,10 +676,76 @@ onMounted(async () => {
   gap: 10px 18px;
 }
 
+.mode-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.mode-card {
+  padding: 18px 20px;
+  border: 1px solid rgba(120, 148, 180, 0.28);
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(246, 250, 255, 0.54)),
+    radial-gradient(circle at top right, rgba(115, 181, 255, 0.22), transparent 50%);
+  backdrop-filter: blur(18px);
+  text-align: left;
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+  cursor: pointer;
+}
+
+.mode-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(87, 141, 214, 0.46);
+  box-shadow: 0 18px 36px rgba(36, 64, 102, 0.12);
+}
+
+.mode-card.is-active {
+  border-color: rgba(62, 123, 202, 0.7);
+  box-shadow: 0 22px 44px rgba(54, 92, 150, 0.16);
+}
+
+.mode-card__eyebrow {
+  display: inline-flex;
+  margin-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(64, 96, 146, 0.78);
+}
+
+.mode-card strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.mode-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.range-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.preset-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .runtime-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+  margin-top: 4px;
 }
 
 .runtime-card {
@@ -382,18 +761,95 @@ onMounted(async () => {
 }
 
 .runtime-card strong {
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
-.runtime-card--message {
-  grid-column: span 1;
+.sync-monitor {
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px solid rgba(120, 148, 180, 0.22);
+}
+
+.sync-monitor__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.sync-monitor__header h3 {
+  margin: 6px 0 0;
+  font-size: 20px;
+}
+
+.sync-monitor__eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(64, 96, 146, 0.72);
+}
+
+.sync-monitor__tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sync-monitor__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.sync-monitor__message {
+  margin: 14px 0 18px;
+}
+
+.sync-errors {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 245, 245, 0.62);
+  border: 1px solid rgba(216, 96, 96, 0.18);
+}
+
+.sync-errors__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a13f3f;
+  margin-bottom: 12px;
+}
+
+.sync-errors__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-errors__item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  line-height: 1.6;
+  color: #6f2d2d;
+  font-size: 13px;
 }
 
 @media (max-width: 960px) {
   .settings-grid,
   .runtime-grid,
-  .checkbox-grid {
+  .checkbox-grid,
+  .mode-panel,
+  .sync-monitor__meta {
     grid-template-columns: 1fr;
+  }
+
+  .sync-monitor__header {
+    flex-direction: column;
   }
 }
 </style>

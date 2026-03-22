@@ -1,8 +1,14 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 
 from ..auth.dependencies import get_current_user, require_admin
-from ..models.market_data import MarketDataOverviewOut, MarketDataSyncResult
+from ..models.market_data import (
+    MarketDataOverviewOut,
+    MarketDataSyncRequest,
+    MarketDataSyncStartOut,
+    MarketDataSyncStatusOut,
+)
 from ..services.market_data_service import MarketDataService
+from ..services.market_data_sync_runner import MarketDataSyncRunner
 
 router = APIRouter(prefix="/api/market-data", tags=["行情数据中心"])
 
@@ -30,7 +36,22 @@ async def get_market_data_overview(
     return MarketDataOverviewOut(**result)
 
 
-@router.post("/sync", response_model=MarketDataSyncResult)
-async def sync_market_data(_=Depends(require_admin)):
-    result = _get_service().sync_configured_data(trigger="manual")
-    return MarketDataSyncResult(**result)
+@router.post("/sync", response_model=MarketDataSyncStartOut)
+async def sync_market_data(
+    payload: MarketDataSyncRequest | None = Body(default=None),
+    _=Depends(require_admin),
+):
+    payload = payload or MarketDataSyncRequest()
+    result = MarketDataSyncRunner.start_sync(mode=payload.mode, trigger="manual")
+    return MarketDataSyncStartOut(**result)
+
+
+@router.get("/sync/status", response_model=MarketDataSyncStatusOut)
+async def get_market_data_sync_status(
+    sync_id: str = Query(default=""),
+    _=Depends(require_admin),
+):
+    result = MarketDataSyncRunner.get_status(sync_id=sync_id or None)
+    if not result:
+        return MarketDataSyncStatusOut(sync_id=sync_id or "", status="unknown")
+    return MarketDataSyncStatusOut(**result)

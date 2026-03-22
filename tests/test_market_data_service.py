@@ -65,6 +65,13 @@ class _FakeTushareAPI:
         return pd.DataFrame([])
 
 
+class _PartiallyFailingTushareAPI(_FakeTushareAPI):
+    def get_moneyflow(self, ts_code, start_date, end_date):
+        if ts_code == "600519.SH":
+            raise RuntimeError("moneyflow 接口异常")
+        return super().get_moneyflow(ts_code, start_date, end_date)
+
+
 class TestMarketDataService(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -106,13 +113,17 @@ class TestMarketDataService(unittest.TestCase):
         self.assertTrue(settings["auto_sync"])
 
     def test_sync_configured_data_writes_daily_and_snapshot_rows(self):
+        progress_events = []
         with patch("backend.services.market_data_service.TushareAPI", _FakeTushareAPI):
-            result = self.service.sync_configured_data()
+            result = self.service.sync_configured_data(progress_callback=progress_events.append)
 
         self.assertTrue(result["success"])
+        self.assertEqual(result["status"], "success")
         self.assertEqual(result["symbol_count"], 2)
         self.assertEqual(result["daily_rows"], 2)
         self.assertEqual(result["snapshot_rows"], 4)
+        self.assertGreaterEqual(len(progress_events), 1)
+        self.assertEqual(progress_events[-1]["current"], progress_events[-1]["total"])
 
         overview = self.service.get_overview(ts_code="000001.SZ")
         self.assertEqual(overview["ts_code"], "000001.SZ")
@@ -135,7 +146,33 @@ class TestMarketDataService(unittest.TestCase):
         )
 
         with patch("backend.services.market_data_service.TushareAPI", _FakeTushareAPI):
-            result = self.service.sync_configured_data()
+            result = self.service.sync_configured_data(mode="backfill")
 
         self.assertEqual(result["range_start"], "2026-03-01")
         self.assertEqual(result["range_end"], "2026-03-20")
+        self.assertEqual(result["mode"], "backfill")
+
+    def test_incremental_mode_ignores_explicit_date_range(self):
+        self.settings.update_settings(
+            "market_data",
+            [
+                {"key": "start_date", "value": "2026-03-01", "is_secret": False},
+                {"key": "end_date", "value": "2026-03-20", "is_secret": False},
+            ],
+        )
+
+        with patch("backend.services.market_data_service.TushareAPI", _FakeTushareAPI):
+            result = self.service.sync_configured_data(mode="incremental")
+
+        self.assertNotEqual(result["range_start"], "2026-03-01")
+        self.assertNotEqual(result["range_end"], "2026-03-20")
+        self.assertEqual(result["mode"], "incremental")
+
+    def test_sync_configured_data_collects_partial_failures(self):
+        with patch("backend.services.market_data_service.TushareAPI", _PartiallyFailingTushareAPI):
+            result = self.service.sync_configured_data()
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(len(result["errors"]), 1)
+        self.assertIn("600519.SH", result["errors"][0])
