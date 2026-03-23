@@ -173,6 +173,14 @@
               </el-button>
               <el-button
                 plain
+                type="primary"
+                :loading="addingAllStocks"
+                @click="addAllStocksToPool"
+              >
+                一键加入全部A股
+              </el-button>
+              <el-button
+                plain
                 :loading="addingFilteredStocks"
                 @click="addAllFilteredStocksToPool"
               >
@@ -184,7 +192,7 @@
             </div>
 
             <div class="settings-tip">
-              当前匹配 {{ stockSearchTotal }} 条结果。可以按板块、行业、地区进一步筛选，再批量加入股票池，省去逐个录入代码的麻烦。
+              当前匹配 {{ stockSearchTotal }} 条结果。下拉框只预览部分结果，你可以按板块、行业、地区进一步筛选，或者直接一键加入全部 A 股，省去逐个录入代码的麻烦。
             </div>
             <div class="settings-tip">
               “批量加入全部筛选结果”只会填充股票池，不会自动开始同步；股票数量越多，后续补数和增量同步耗时会越长。
@@ -213,8 +221,12 @@
               <small>标签式管理支持上移、下移和移除，保存时会按当前顺序写入配置。</small>
             </div>
 
-            <div v-if="poolStockItems.length" class="stock-pool-grid">
-              <article v-for="item in poolStockItems" :key="item.ts_code" class="stock-pool-card glass-surface">
+            <div v-if="poolPreviewHiddenCount" class="settings-tip">
+              当前股票池较大，为了避免页面卡顿，这里只预览前 {{ MAX_POOL_PREVIEW }} 只股票；其余 {{ poolPreviewHiddenCount }} 只仍然会正常保存和同步。
+            </div>
+
+            <div v-if="poolStockPreviewItems.length" class="stock-pool-grid">
+              <article v-for="item in poolStockPreviewItems" :key="item.ts_code" class="stock-pool-card glass-surface">
                 <div class="stock-pool-card__copy">
                   <strong>{{ item.name || item.ts_code }}</strong>
                   <span>{{ item.ts_code }}</span>
@@ -517,10 +529,13 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { getMarketDataSyncStatus, searchMarketStocks, syncMarketData } from '../../api/index'
 import { getSettings, testTushare, updateSettings } from '../../api/settings'
+
+const DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT = 200
+const MAX_POOL_PREVIEW = 120
 
 const datasetOptions = [
   { label: '日线行情', value: 'daily' },
@@ -566,6 +581,7 @@ const stockAreaOptions = ref([])
 const stockIndustryOptions = ref([])
 const stockSearchLoading = ref(false)
 const stockSearchTotal = ref(0)
+const addingAllStocks = ref(false)
 const addingFilteredStocks = ref(false)
 const manualPoolInput = ref('')
 const stockMetaMap = ref({})
@@ -618,6 +634,8 @@ const poolStockItems = computed(() =>
     }
   }),
 )
+const poolStockPreviewItems = computed(() => poolStockItems.value.slice(0, MAX_POOL_PREVIEW))
+const poolPreviewHiddenCount = computed(() => Math.max(0, poolStockItems.value.length - MAX_POOL_PREVIEW))
 const syncStatusLabel = computed(() => {
   const labelMap = {
     idle: '待执行',
@@ -976,7 +994,7 @@ function buildMarketSettingsPayload() {
   }
 }
 
-async function fetchStockCandidates(query = '', refresh = false, limit = 50) {
+async function fetchStockCandidates(query = '', refresh = false, limit = DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT) {
   stockSearchLoading.value = true
   try {
     const result = await searchMarketStocks({
@@ -1011,26 +1029,26 @@ function stopSyncPolling() {
 
 function handleStockSearch(query) {
   stockSearchKeyword = query || ''
-  fetchStockCandidates(stockSearchKeyword, false, 50)
+  fetchStockCandidates(stockSearchKeyword, false, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
 }
 
 function handleStockSearchVisibleChange(visible) {
   if (!visible || stockSearchResults.value.length) {
     return
   }
-  fetchStockCandidates('', false, 50)
+  fetchStockCandidates('', false, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
 }
 
 function handleStockMarketChange() {
-  fetchStockCandidates(stockSearchKeyword, false, 50)
+  fetchStockCandidates(stockSearchKeyword, false, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
 }
 
 function handleStockAreaChange() {
-  fetchStockCandidates(stockSearchKeyword, false, 50)
+  fetchStockCandidates(stockSearchKeyword, false, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
 }
 
 function handleStockIndustryChange() {
-  fetchStockCandidates(stockSearchKeyword, false, 50)
+  fetchStockCandidates(stockSearchKeyword, false, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
 }
 
 function addSelectedStocksToPool() {
@@ -1051,11 +1069,6 @@ function addSearchResultsToPool() {
 }
 
 async function addAllFilteredStocksToPool() {
-  if (!stockMarketFilter.value && !stockAreaFilter.value && !stockIndustryFilter.value && !stockSearchKeyword) {
-    ElMessage.warning('请至少设置一个搜索关键词或筛选条件，再批量加入全部筛选结果')
-    return
-  }
-
   addingFilteredStocks.value = true
   try {
     const result = await searchMarketStocks({
@@ -1068,7 +1081,7 @@ async function addAllFilteredStocksToPool() {
     const items = result.items || []
     mergeSymbolsIntoPool(items.map(item => item.ts_code))
     cacheStockMeta(items)
-    stockSearchResults.value = items
+    stockSearchResults.value = items.slice(0, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
     stockSearchTotal.value = result.total || items.length
     stockMarketOptions.value = result.markets || stockMarketOptions.value
     stockAreaOptions.value = result.areas || stockAreaOptions.value
@@ -1081,8 +1094,44 @@ async function addAllFilteredStocksToPool() {
   }
 }
 
+async function addAllStocksToPool() {
+  try {
+    await ElMessageBox.confirm(
+      '这会把当前股票目录中的全部 A 股一次性加入股票池，后续同步任务会明显变慢。确定继续吗？',
+      '加入全部A股',
+      {
+        type: 'warning',
+        confirmButtonText: '继续加入',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  addingAllStocks.value = true
+  try {
+    const result = await searchMarketStocks({
+      limit: 10000,
+    })
+    const items = result.items || []
+    mergeSymbolsIntoPool(items.map(item => item.ts_code))
+    cacheStockMeta(items)
+    stockSearchResults.value = items.slice(0, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
+    stockSearchTotal.value = result.total || items.length
+    stockMarketOptions.value = result.markets || stockMarketOptions.value
+    stockAreaOptions.value = result.areas || stockAreaOptions.value
+    stockIndustryOptions.value = result.industries || stockIndustryOptions.value
+    ElMessage.success(`已把全部 A 股加入股票池，共 ${items.length} 只股票`)
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '加载全部A股失败'))
+  } finally {
+    addingAllStocks.value = false
+  }
+}
+
 function refreshStockCatalog() {
-  fetchStockCandidates(stockSearchKeyword, true, 50)
+  fetchStockCandidates(stockSearchKeyword, true, DEFAULT_STOCK_SEARCH_PREVIEW_LIMIT)
 }
 
 function applyPresetRange(days) {
