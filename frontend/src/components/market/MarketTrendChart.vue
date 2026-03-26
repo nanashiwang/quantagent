@@ -24,7 +24,7 @@ const chartOption = computed(() => ({
     trigger: 'axis',
   },
   legend: {
-    data: ['???', '???'],
+    data: ['收盘价', '成交量'],
   },
   grid: {
     left: 28,
@@ -41,18 +41,18 @@ const chartOption = computed(() => ({
   yAxis: [
     {
       type: 'value',
-      name: '???',
+      name: '收盘价',
       scale: true,
     },
     {
       type: 'value',
-      name: '???',
+      name: '成交量',
       scale: true,
     },
   ],
   series: [
     {
-      name: '???',
+      name: '收盘价',
       type: 'line',
       smooth: true,
       symbol: 'none',
@@ -61,7 +61,7 @@ const chartOption = computed(() => ({
       data: props.priceSeries.map(item => item.close),
     },
     {
-      name: '???',
+      name: '成交量',
       type: 'bar',
       yAxisIndex: 1,
       itemStyle: { color: 'rgba(43,195,177,0.55)' },

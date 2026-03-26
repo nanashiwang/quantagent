@@ -3,13 +3,13 @@
     <section class="page-hero">
       <div>
         <span class="page-eyebrow">Market Data Center</span>
-        <h2>??????????????????????????</h2>
-        <p>????????????????????????????????????????????</p>
+        <h2>把股票池行情、指标和资金流向放到一个更顺手的工作台里</h2>
+        <p>按股票查看拉回来的历史数据，结合图表趋势和明细表格，快速确认同步是否正常、指标是否完整。</p>
       </div>
       <div class="hero-runtime glass-surface">
         <span class="section-tag">Last Sync</span>
-        <strong>{{ runtime.last_sync_at || '????' }}</strong>
-        <small>{{ runtime.last_sync_message || '?? Tushare ????????????????' }}</small>
+        <strong>{{ runtime.last_sync_at || '尚未同步' }}</strong>
+        <small>{{ runtime.last_sync_message || '先到 Tushare 配置页保存股票池并执行一次同步。' }}</small>
       </div>
     </section>
 
@@ -17,66 +17,66 @@
       <template #header>
         <div class="panel-toolbar">
           <div class="panel-toolbar__copy">
-            <div class="panel-title">????</div>
-            <div class="panel-subtitle">??????????????????????????</div>
+            <div class="panel-title">查询条件</div>
+            <div class="panel-subtitle">选择股票和时间区间后刷新，下方图表和表格会联动更新。</div>
           </div>
           <span class="section-tag">{{ dataTypesLabel }}</span>
         </div>
       </template>
 
       <div class="filter-grid">
-        <el-select v-model="filters.ts_code" placeholder="????" clearable>
+        <el-select v-model="filters.ts_code" placeholder="选择股票" clearable>
           <el-option v-for="item in symbols" :key="item" :label="item" :value="item" />
         </el-select>
 
         <el-date-picker
           v-model="dateRange"
           type="daterange"
-          range-separator="?"
-          start-placeholder="????"
-          end-placeholder="????"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
           value-format="YYYY-MM-DD"
         />
 
-        <el-button type="primary" @click="handleRefresh" :loading="loading">????</el-button>
+        <el-button type="primary" @click="handleRefresh" :loading="loading">刷新数据</el-button>
       </div>
     </el-card>
 
     <section class="metric-grid market-metric-grid">
       <article class="metric-card glass-surface">
-        <div class="metric-label">?????</div>
+        <div class="metric-label">最新收盘价</div>
         <div class="metric-value">{{ formatNumber(latestSummary.close) }}</div>
-        <div class="metric-hint">{{ latestSummary.trade_date || '????' }}</div>
+        <div class="metric-hint">{{ latestSummary.trade_date || '暂无数据' }}</div>
       </article>
 
       <article class="metric-card glass-surface metric-card--accent">
-        <div class="metric-label">???</div>
+        <div class="metric-label">主基准</div>
         <div class="metric-value metric-value--compact">{{ benchmarkSummary.name || primaryBenchmark || '--' }}</div>
-        <div class="metric-hint">{{ benchmarkSummary.index_code || primaryBenchmark || '???' }}</div>
+        <div class="metric-hint">{{ benchmarkSummary.index_code || primaryBenchmark || '未配置' }}</div>
       </article>
 
       <article class="metric-card glass-surface">
-        <div class="metric-label">???? / ??</div>
+        <div class="metric-label">基准收盘 / 涨跌</div>
         <div class="metric-value">{{ formatBenchmarkSnapshot(benchmarkSummary.close, benchmarkSummary.pct_chg) }}</div>
-        <div class="metric-hint">{{ benchmarkSummary.trade_date || '????' }}</div>
+        <div class="metric-hint">{{ benchmarkSummary.trade_date || '暂无数据' }}</div>
       </article>
 
       <article class="metric-card glass-surface">
         <div class="metric-label">PE / PB</div>
         <div class="metric-value">{{ formatPair(latestSummary.pe, latestSummary.pb) }}</div>
-        <div class="metric-hint">??????</div>
+        <div class="metric-hint">基础指标快照</div>
       </article>
 
       <article class="metric-card glass-surface">
-        <div class="metric-label">???</div>
+        <div class="metric-label">换手率</div>
         <div class="metric-value">{{ formatNumber(latestSummary.turnover_rate) }}</div>
-        <div class="metric-hint">??????????</div>
+        <div class="metric-hint">最新一日日线基础指标</div>
       </article>
 
       <article class="metric-card glass-surface">
-        <div class="metric-label">????</div>
+        <div class="metric-label">净流入额</div>
         <div class="metric-value">{{ formatNumber(latestSummary.net_mf_amount) }}</div>
-        <div class="metric-hint">??????</div>
+        <div class="metric-hint">资金流向数据</div>
       </article>
     </section>
 
@@ -85,45 +85,45 @@
         <template #header>
           <div class="panel-toolbar">
             <div class="panel-toolbar__copy">
-              <div class="panel-title">????</div>
-              <div class="panel-subtitle">?????????????????????????</div>
+              <div class="panel-title">价格趋势</div>
+              <div class="panel-subtitle">图表组件按需异步加载，避免切换侧栏时被大图表阻塞。</div>
             </div>
-            <span class="section-tag">{{ records.length }} ???</span>
+            <span class="section-tag">{{ records.length }} 条记录</span>
           </div>
         </template>
 
         <div v-if="priceSeries.length" class="chart-shell">
           <component :is="MarketTrendChart" v-if="showTrendChart" :price-series="priceSeries" class="market-chart" />
           <div v-else class="chart-placeholder glass-surface">
-            <span>?????????????????????</span>
+            <span>正在延迟装载图表引擎，优先保证页面先打开。</span>
           </div>
         </div>
-        <el-empty v-else description="???????????" />
+        <el-empty v-else description="当前股票暂无可视化数据" />
       </el-card>
 
       <el-card class="panel-card" shadow="never">
         <template #header>
           <div class="panel-toolbar">
             <div class="panel-toolbar__copy">
-              <div class="panel-title">????</div>
-              <div class="panel-subtitle">????????????????????????????????</div>
+              <div class="panel-title">最新快照</div>
+              <div class="panel-subtitle">表格会合并日线、基础指标和资金流向，便于核对每个交易日的完整性。</div>
             </div>
-            <span class="section-tag">{{ filters.ts_code || '???' }}</span>
+            <span class="section-tag">{{ filters.ts_code || '未选择' }}</span>
           </div>
         </template>
 
         <el-table :data="records" v-loading="loading" max-height="520">
-          <el-table-column prop="trade_date" label="??" width="110" fixed="left" />
-          <el-table-column prop="close" label="??" width="100" />
-          <el-table-column prop="open" label="??" width="100" />
-          <el-table-column prop="high" label="??" width="100" />
-          <el-table-column prop="low" label="??" width="100" />
-          <el-table-column prop="volume" label="???" min-width="120" />
-          <el-table-column prop="amount" label="???" min-width="120" />
-          <el-table-column prop="turnover_rate" label="???" width="110" />
+          <el-table-column prop="trade_date" label="日期" width="110" fixed="left" />
+          <el-table-column prop="close" label="收盘" width="100" />
+          <el-table-column prop="open" label="开盘" width="100" />
+          <el-table-column prop="high" label="最高" width="100" />
+          <el-table-column prop="low" label="最低" width="100" />
+          <el-table-column prop="volume" label="成交量" min-width="120" />
+          <el-table-column prop="amount" label="成交额" min-width="120" />
+          <el-table-column prop="turnover_rate" label="换手率" width="110" />
           <el-table-column prop="pe" label="PE" width="100" />
           <el-table-column prop="pb" label="PB" width="100" />
-          <el-table-column prop="net_mf_amount" label="????" min-width="120" />
+          <el-table-column prop="net_mf_amount" label="净流入额" min-width="120" />
         </el-table>
       </el-card>
     </section>
@@ -146,11 +146,11 @@ const MarketTrendChart = defineAsyncComponent({
 })
 
 const datasetLabelMap = {
-  daily: '????',
-  daily_basic: '????',
-  moneyflow: '????',
-  top_list: '???',
-  index_daily: '????',
+  daily: '日线行情',
+  daily_basic: '基础指标',
+  moneyflow: '资金流向',
+  top_list: '龙虎榜',
+  index_daily: '大盘指数',
 }
 
 const loading = ref(false)
@@ -170,7 +170,7 @@ const filters = ref({
 
 const dataTypesLabel = computed(() => {
   if (!dataTypes.value.length) {
-    return '???????'
+    return '未配置数据类型'
   }
   return dataTypes.value.map(item => datasetLabelMap[item] || item).join(' / ')
 })
@@ -296,7 +296,7 @@ async function loadOverview(options = {}) {
     writeOverviewCache(params, result)
     return result
   } catch (error) {
-    ElMessage.error(error?.response?.data?.detail || '?????????????????????')
+    ElMessage.error(error?.response?.data?.detail || '行情数据加载失败，请检查同步状态或后端日志')
     throw error
   } finally {
     loading.value = false
