@@ -63,6 +63,20 @@
             show-password
           />
         </el-form-item>
+        <div class="login-options">
+          <div class="login-options__group">
+            <el-checkbox v-model="loginForm.rememberMe" @change="auth.setRememberPreference">
+              记住我
+            </el-checkbox>
+            <el-checkbox
+              v-model="loginForm.rememberUsername"
+              @change="(value) => auth.setRememberUsernamePreference(value, loginForm.username)"
+            >
+              记住用户名
+            </el-checkbox>
+          </div>
+          <span class="login-options__tip">下次打开浏览器自动保持登录</span>
+        </div>
         <el-button type="primary" native-type="submit" :loading="loading" size="large" class="login-btn">
           {{ loading ? '登录中...' : '立即登录' }}
         </el-button>
@@ -128,7 +142,12 @@ const auth = useAuthStore()
 
 const mode = ref('login')
 const loading = ref(false)
-const loginForm = ref({ username: '', password: '' })
+const loginForm = ref({
+  username: auth.rememberedUsername || '',
+  password: '',
+  rememberMe: auth.rememberMe,
+  rememberUsername: auth.rememberUsername,
+})
 const registerForm = ref({ username: '', password: '', confirmPassword: '' })
 
 function switchMode(nextMode) {
@@ -150,8 +169,13 @@ async function handleLogin() {
     const res = await login({
       username: loginForm.value.username.trim(),
       password: loginForm.value.password,
+      remember_me: loginForm.value.rememberMe,
     })
-    auth.setAuth(res.access_token, res.user)
+    auth.setAuth(res, {
+      rememberMe: loginForm.value.rememberMe,
+      rememberUsername: loginForm.value.rememberUsername,
+      username: loginForm.value.username.trim(),
+    })
     ElMessage.success('登录成功')
     router.push('/')
   } catch (e) {
@@ -189,10 +213,23 @@ async function handleRegister() {
   loading.value = true
   try {
     await registerUser({ username, password })
-    const loginRes = await login({ username, password })
-    auth.setAuth(loginRes.access_token, loginRes.user)
+    const loginRes = await login({
+      username,
+      password,
+      remember_me: loginForm.value.rememberMe,
+    })
+    auth.setAuth(loginRes, {
+      rememberMe: loginForm.value.rememberMe,
+      rememberUsername: loginForm.value.rememberUsername,
+      username,
+    })
     resetRegisterForm()
-    loginForm.value = { username, password: '' }
+    loginForm.value = {
+      username,
+      password: '',
+      rememberMe: loginForm.value.rememberMe,
+      rememberUsername: loginForm.value.rememberUsername,
+    }
     ElMessage.success('注册成功，已自动登录')
     router.push('/profile')
   } catch (e) {
@@ -211,7 +248,7 @@ async function handleRegister() {
   justify-content: center;
   min-height: 100vh;
   overflow: hidden;
-  background: #08121d;
+  background: linear-gradient(135deg, #0a1628 0%, #1a2942 100%);
 }
 
 .login-bg-shapes {
@@ -223,63 +260,72 @@ async function handleRegister() {
 .shape {
   position: absolute;
   border-radius: 50%;
-  filter: blur(88px);
-  opacity: 0.46;
-  animation: float 20s ease-in-out infinite;
+  filter: blur(100px);
+  opacity: 0.4;
+  animation: float 22s ease-in-out infinite;
 }
 
 .shape-1 {
-  top: -120px;
-  right: -90px;
-  width: 480px;
-  height: 480px;
-  background: #2a7fff;
+  top: -140px;
+  right: -100px;
+  width: 500px;
+  height: 500px;
+  background: #0066ff;
 }
 
 .shape-2 {
-  left: -90px;
-  bottom: -80px;
-  width: 360px;
-  height: 360px;
-  background: #17b897;
-  animation-delay: -7s;
+  left: -100px;
+  bottom: -100px;
+  width: 400px;
+  height: 400px;
+  background: #00d4aa;
+  animation-delay: -8s;
 }
 
 .shape-3 {
-  top: 46%;
-  left: 48%;
-  width: 280px;
-  height: 280px;
-  background: #f3b356;
-  animation-delay: -12s;
+  top: 45%;
+  left: 46%;
+  width: 320px;
+  height: 320px;
+  background: #ff9f40;
+  animation-delay: -14s;
 }
 
 @keyframes float {
-  0%,
-  100% {
+  0%, 100% {
     transform: translate(0, 0) scale(1);
   }
-
   33% {
-    transform: translate(28px, -24px) scale(1.04);
+    transform: translate(32px, -28px) scale(1.06);
   }
-
   66% {
-    transform: translate(-16px, 18px) scale(0.96);
+    transform: translate(-20px, 22px) scale(0.94);
   }
 }
 
 .login-card {
   position: relative;
   z-index: 1;
-  width: min(460px, calc(100vw - 32px));
-  padding: 42px 36px 30px;
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 28px 84px rgba(0, 0, 0, 0.36);
-  backdrop-filter: blur(26px);
-  -webkit-backdrop-filter: blur(26px);
+  width: min(480px, calc(100vw - 32px));
+  padding: 48px 40px 36px;
+  border-radius: var(--radius-2xl);
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 32px 96px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  animation: card-enter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .login-brand {
@@ -291,28 +337,31 @@ async function handleRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 16px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #2a7fff, #17b897);
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #0066ff, #00d4aa);
   color: #fff;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  box-shadow: 0 12px 32px rgba(0, 102, 255, 0.4);
 }
 
 .login-brand h2 {
-  margin: 0 0 6px;
-  color: #f9fcff;
-  font-size: 26px;
-  letter-spacing: -0.03em;
+  margin: 0 0 8px;
+  color: #fafcff;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .brand-sub {
   margin: 0;
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .mode-switch {
@@ -320,27 +369,33 @@ async function handleRegister() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
-  margin-bottom: 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.06);
+  margin-bottom: 20px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .mode-switch__item {
-  height: 42px;
+  height: 44px;
   border: none;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-base);
+}
+
+.mode-switch__item:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .mode-switch__item.is-active {
-  background: linear-gradient(135deg, rgba(42, 127, 255, 0.92), rgba(23, 184, 151, 0.88));
+  background: linear-gradient(135deg, rgba(0, 102, 255, 0.95), rgba(0, 212, 170, 0.92));
   color: #fff;
-  box-shadow: 0 12px 24px rgba(23, 184, 151, 0.18);
+  box-shadow: 0 8px 20px rgba(0, 102, 255, 0.3);
+  transform: translateY(-1px);
 }
 
 .mode-copy {
@@ -348,23 +403,37 @@ async function handleRegister() {
 }
 
 .mode-copy h3 {
-  margin: 0 0 8px;
-  color: #f7fbff;
-  font-size: 20px;
+  margin: 0 0 10px;
+  color: #fafcff;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .mode-copy p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.62);
-  line-height: 1.7;
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.65;
+  font-size: 14px;
 }
 
 .login-form :deep(.el-input__wrapper) {
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.1);
   box-shadow: none !important;
+  transition: all var(--transition-base);
+}
+
+.login-form :deep(.el-input__wrapper:hover) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.login-form :deep(.el-input__wrapper.is-focus) {
+  border-color: rgba(0, 212, 170, 0.6);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1) !important;
 }
 
 .login-form :deep(.el-input__inner) {
@@ -382,26 +451,64 @@ async function handleRegister() {
 
 .login-btn {
   width: 100%;
-  height: 48px;
+  height: 50px;
   border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #2a7fff, #17b897);
-  font-size: 15px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #0066ff, #00d4aa);
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  letter-spacing: 0.01em;
+  transition: all var(--transition-base);
+  box-shadow: 0 8px 24px rgba(0, 102, 255, 0.35);
 }
 
 .login-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 30px rgba(23, 184, 151, 0.26);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 102, 255, 0.45);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 16px rgba(0, 102, 255, 0.4);
+}
+
+.login-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -2px 2px 18px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+}
+
+.login-options__group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.login-options :deep(.el-checkbox__label) {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 500;
+}
+
+.login-options :deep(.el-checkbox__input.is-checked + .el-checkbox__label) {
+  color: #fafcff;
+  font-weight: 600;
+}
+
+.login-options__tip {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 12px;
 }
 
 .hint {
-  margin: 18px 0 0;
-  color: rgba(255, 255, 255, 0.42);
+  margin: 20px 0 0;
+  color: rgba(255, 255, 255, 0.48);
   text-align: center;
-  font-size: 12px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.65;
 }
 </style>

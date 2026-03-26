@@ -47,6 +47,7 @@ class AdminUserCreate(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+    remember_me: bool = False
 
     @field_validator("username")
     @classmethod
@@ -114,5 +115,18 @@ class ProfileUpdate(BaseModel):
 
 class TokenOut(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     user: UserOut
+
+
+class RefreshTokenIn(BaseModel):
+    refresh_token: str
+
+    @field_validator("refresh_token")
+    @classmethod
+    def validate_refresh_token(cls, value: str) -> str:
+        token = value.strip()
+        if not token:
+            raise ValueError("refresh_token 不能为空")
+        return token

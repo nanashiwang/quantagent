@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 os.environ["JWT_SECRET_KEY"] = "test-jwt-secret-key-for-register-tests"
 
 import backend.app as backend_app_module
+from backend.auth.jwt_handler import decode_access_token, decode_refresh_token
 from src.data.db.sqlite_client import SQLiteClient
 
 
@@ -75,6 +76,56 @@ class TestAuthRegister(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 422)
+
+    def test_login_with_remember_me_extends_refresh_token_expiration(self):
+        with TestClient(backend_app_module.app) as client:
+            client.post(
+                "/api/auth/register",
+                json={"username": "remember-user", "password": "new-password-123"},
+            )
+            regular_login = client.post(
+                "/api/auth/login",
+                json={"username": "remember-user", "password": "new-password-123", "remember_me": False},
+            )
+            remembered_login = client.post(
+                "/api/auth/login",
+                json={"username": "remember-user", "password": "new-password-123", "remember_me": True},
+            )
+
+        self.assertEqual(regular_login.status_code, 200)
+        self.assertEqual(remembered_login.status_code, 200)
+
+        regular_payload = decode_access_token(regular_login.json()["access_token"])
+        remembered_payload = decode_access_token(remembered_login.json()["access_token"])
+        regular_refresh_payload = decode_refresh_token(regular_login.json()["refresh_token"])
+        remembered_refresh_payload = decode_refresh_token(remembered_login.json()["refresh_token"])
+
+        self.assertIsNotNone(regular_payload)
+        self.assertIsNotNone(remembered_payload)
+        self.assertIsNotNone(regular_refresh_payload)
+        self.assertIsNotNone(remembered_refresh_payload)
+        self.assertGreater(remembered_refresh_payload["exp"], regular_refresh_payload["exp"])
+
+    def test_refresh_token_endpoint_rotates_tokens(self):
+        with TestClient(backend_app_module.app) as client:
+            client.post(
+                "/api/auth/register",
+                json={"username": "refresh-user", "password": "new-password-123"},
+            )
+            login_response = client.post(
+                "/api/auth/login",
+                json={"username": "refresh-user", "password": "new-password-123", "remember_me": True},
+            )
+            refresh_response = client.post(
+                "/api/auth/refresh",
+                json={"refresh_token": login_response.json()["refresh_token"]},
+            )
+
+        self.assertEqual(login_response.status_code, 200)
+        self.assertEqual(refresh_response.status_code, 200)
+        self.assertTrue(refresh_response.json()["access_token"])
+        self.assertTrue(refresh_response.json()["refresh_token"])
+        self.assertNotEqual(refresh_response.json()["refresh_token"], login_response.json()["refresh_token"])
 
 
 if __name__ == "__main__":

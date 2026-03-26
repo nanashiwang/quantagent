@@ -1,6 +1,7 @@
 import request from '../utils/request'
 
 export const login = (data) => request.post('/auth/login', data)
+export const refreshToken = (data, config = {}) => request.post('/auth/refresh', data, config)
 export const register = (data) => request.post('/auth/register', data)
 export const getCurrentUser = () => request.get('/auth/me')
 export const updateProfile = (data) => request.put('/auth/me', data)

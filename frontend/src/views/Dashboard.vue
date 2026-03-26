@@ -197,26 +197,35 @@ async function runWf(type) {
 <style scoped>
 .dashboard-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.8fr);
+  gap: 24px;
   align-items: end;
 }
 
 .dashboard-hero__status {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 22px;
+  gap: 14px;
+  padding: 26px 24px;
+  transition: all var(--transition-base);
+}
+
+.dashboard-hero__status:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 .dashboard-hero__status strong {
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.5;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .dashboard-hero__status small {
   color: var(--text-secondary);
   line-height: 1.6;
+  font-size: 14px;
 }
 
 @media (max-width: 1100px) {

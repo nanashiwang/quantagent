@@ -142,7 +142,11 @@ async function handleSave() {
   saving.value = true
   try {
     const res = await updateProfile(payload)
-    auth.setAuth(res.access_token, res.user)
+    auth.setAuth(res, {
+      rememberMe: auth.rememberMe,
+      rememberUsername: auth.rememberUsername,
+      username: res.user.username,
+    })
     userInfo.value = res.user
     form.value.username = res.user.username
     resetPasswords()

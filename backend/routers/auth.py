@@ -1,8 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..auth.dependencies import get_current_user
-from ..auth.jwt_handler import create_access_token, hash_password, verify_password
-from ..models.user import ProfileUpdate, TokenOut, UserCreate, UserLogin, UserOut
+from ..auth.jwt_handler import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    get_access_token_expires_delta,
+    get_refresh_token_expires_delta,
+    hash_password,
+    verify_password,
+)
+from ..models.user import ProfileUpdate, RefreshTokenIn, TokenOut, UserCreate, UserLogin, UserOut
 from ..services.user_service import UserService
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
@@ -24,6 +32,25 @@ def _build_user_out(user: dict) -> UserOut:
     )
 
 
+def _build_token_out(user: dict, *, remember_me: bool) -> TokenOut:
+    access_payload = {"sub": user["username"], "role": user["role"], "uid": user["id"]}
+    access_token = create_access_token(
+        access_payload,
+        remember_me=remember_me,
+        expires_delta=get_access_token_expires_delta(),
+    )
+    refresh_token = create_refresh_token(
+        access_payload,
+        remember_me=remember_me,
+        expires_delta=get_refresh_token_expires_delta(remember_me),
+    )
+    return TokenOut(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=_build_user_out(user),
+    )
+
+
 @router.post("/login", response_model=TokenOut)
 async def login(data: UserLogin):
     svc = _get_service()
@@ -36,8 +63,23 @@ async def login(data: UserLogin):
     svc.update_last_login(user["id"])
     user = svc.get_by_id(user["id"])
 
-    token = create_access_token({"sub": user["username"], "role": user["role"], "uid": user["id"]})
-    return TokenOut(access_token=token, user=_build_user_out(user))
+    return _build_token_out(user, remember_me=data.remember_me)
+
+
+@router.post("/refresh", response_model=TokenOut)
+async def refresh_token(data: RefreshTokenIn):
+    payload = decode_refresh_token(data.refresh_token)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token 无效或已过期")
+
+    svc = _get_service()
+    user = svc.get_by_id(payload.get("uid"))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+    if not user["is_active"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账户已禁用")
+
+    return _build_token_out(user, remember_me=bool(payload.get("remember_me", False)))
 
 
 @router.post("/register", response_model=UserOut)
@@ -99,9 +141,4 @@ async def update_me(data: ProfileUpdate, current_user: dict = Depends(get_curren
 
     svc.update_user(user["id"], update_data)
     updated_user = svc.get_by_id(user["id"])
-    token = create_access_token({
-        "sub": next_username,
-        "role": updated_user["role"],
-        "uid": updated_user["id"],
-    })
-    return TokenOut(access_token=token, user=_build_user_out(updated_user))
+    return _build_token_out(updated_user, remember_me=bool(current_user.get("remember_me", False)))
